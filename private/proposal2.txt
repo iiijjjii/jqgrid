@@ -1,0 +1,55 @@
+=================
+Phase II Proposal
+=================
+
+
+Defaults Based on Table
+-----------------------
+
+The jqgrid_options colNames and colModel can be defaulted based on the table.
+[ ] Default colNames to the list of table field names in title format.
+[ ] Default colModel based on table field names.
+
+So does JqGrid.data(..., field=[...]).
+[ ] Default field to the list of table field names
+
+
+JqGrid in Module
+----------------
+
+[ ] Move the JqGrid class to a module.
+    applications/jqgrid/modules/jqgrid.py
+
+[ ] Find proper way to pass request and response variables to the module.
+
+
+Component
+---------
+
+[ ] Demonstrate the use of a the JqGrid class as a component (web2py book chapter 13).
+[ ] Implementation should be capable for handling multi component in same page.
+[ ] A well documented demo is especially needed for this complicated demand.
+
+
+Simplification
+--------------
+[ ] No get_rows() is needed anymore, demo() provides needed rows data for itself.
+
+
+
+----
+
+
+All feature is done. Most part of the interface is straight forward, but some
+need an explanation. Pay attention to the comments inside the component demo.
+
+Oh one bonus feature for you. Now you have a JQGRID helper, works almost the
+same way as other html helpers in web2py. So you can mix JQGRID inside other
+html helpers:
+
+    H1('This is a helper'),
+    A('Click me', _href='http://...'),
+    TABLE(
+        TR(JQGRID(...), TD(...)),
+        TR(TD(...), TD(...)),
+        ),

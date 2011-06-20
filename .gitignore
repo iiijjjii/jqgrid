@@ -1,0 +1,7 @@
+*.pyc
+cache/
+databases/*
+!databases/.gitignore
+errors/
+private/var/
+sessions/

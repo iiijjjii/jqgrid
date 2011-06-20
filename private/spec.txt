@@ -1,0 +1,251 @@
+Goal: Modularize jqGrid interface.
+
+Overview
+--------
+
+After running a few tests, I am impressed with the jqGrid. It's ability to
+handle pagination and sorting in an intuitive way is great. I want to make
+use of it in our project.
+
+From the examples of usage, there is a web2pyslice, and the
+plugin_wiki makes use of it, the interface is very clunky and not at all
+modular. I would like to improve that.
+
+
+Outlook
+-------
+
+Here are a few examples of how I forsee a modular interface working.
+
+1. A quick, simple default implementation.
+
+    controller
+        JqGrid = local_import('ClientJqGrid')
+
+        def page():
+            jqgrid = JgGrid()
+            return dict(jqgrid=jqgrid)
+
+        @service.json
+        def get_rows():
+            return JqGrid().data()
+
+    view
+        {{=jqgrid()}}
+
+
+2. Interface to all jqGrid options for customizing table.
+
+    class ClientJqGrid(JqGrid):
+
+        def __init__(
+            jqgrid_options = {
+                'altRows': True,
+                'caption': 'Custom Table',
+                'rowList': [20, 50, 100],
+                'rowNum': 20,
+            }
+            JqGrid.__init__(self, jqgrid_options)
+
+
+3. Modular jqgrids.
+
+    # Base class
+    jqgrid = JqGrid()
+
+    # Subclass the JqGrid class for a particular row set
+    class ClientJqGrid(JqGrid)
+        sub data(self):
+            ... code to get data from db.client
+
+    # Subclass a subclass for specific options
+    class TallClientJqGrid(ClientJqGrid)
+        def __init__(
+            jqgrid_options = {
+                'height': '900px',
+            }
+            ClientJqGrid.__init__(self, jqgrid_options)
+
+
+Requirements
+------------
+
+There are some features jqgrid and our interface must be able to handle.
+Without them, the use of jqgrid is limited.
+
+    * Column header sorting.
+    * Pagination
+    * Cell content formatting (eg convert a cell to a link)
+
+
+This project is going to involve a lot of trial and error. As we work through
+it I want to keep the Outlook and Requirements in mind. If our interface
+becomes too complex then it's not much of an improvement over using raw
+javascript. (Complexity hidden in a class is fine as long as the interface is
+simple and intuitive.) If the interface is simple but at the cost of a
+requirement, then we're no farther ahead either.
+
+
+Phase 1
+-------
+
+I created a jqgrid application to develop a proof of concept. It needs to be
+completed. The application includes a simple model of two tables. The default
+controller displays a page with jqgrid. The goal of this step is to display
+the page just as it is now but use a JqGrid class to do it.
+
+Here are the concepts I want developed.
+
+* Class representing jqgrid
+* Simple controller/view commands
+* Update jqgrid options via python
+
+
+All development for this phase can be done in the default controller and view.
+
+
+class JqGrid
+def script
+[ ] Translate python options to javascript.
+    The values in the self.jqgrid_options need to be translated to the
+    script_tag string as javascript/jQuery options. In the existing code only
+    the 'url' and 'rowNum' keys are working. An ideal solution would not
+    require hardcoding every option key name as that is a maintenance headache.
+    And I'd like if possible for all jqgrid options to be available (ses the
+    Links below for a page listing options), at least in theory. (There is no
+    need to test them all :)
+
+    As an example consider:
+
+        tag = """jQuery("#list").jqGrid({""" + json(self.jqgrid_options) + """});"""
+
+    This should work fine for basic datatypes but options like 'complete' that
+    take a javascript function may need a little work. See next point.
+
+class JqGrid
+def script
+[ ] Deal with unusual datatypes.
+    Options of types string, integer, boolean, and arrays should translate
+    smoothly from python to javascript. But what do we do with the unusual
+    ones. For example the 'ajaxGridOptions' and 'ajaxSelectOptions' take an
+    'object' datatype.
+
+    It may be possible to pass these values as strings and then unquote them
+    in then javascript.
+
+    Don't spend too much time on this. There are only a few unusual ones and
+    offhand I can't see using them. If there isn't a simple solution, then
+    I may just disallow those options.
+
+
+[ ] Handle response.files
+    I don't want to have to add the five response.files.append calls to each
+    controller function that uses jqgrid. This should be handled within a
+    JgGrid class method.
+
+    Here's one option but it's not ideal as it requires a extra call in the
+    controller.
+
+        class JqGrid(object):
+            ...
+            def prepare(self, response):
+                response.files.append(URL(r=request, c='static/jqueryui/css/smoothness',
+                    f='jquery-ui-1.8.12.custom.css'))
+                ...
+
+        def index():
+            jqgrid = JqGrid(
+                jqgrid_options=jqgrid_options
+                )
+            jqgrid.prepare(response)            # <===  ugh!
+            return dict(jqgrid=jqgrid)
+
+    Can you think of a way to do it without the jqgrid.prepare(response) call?
+
+
+[ ] jquery-ui versions
+    The version of the jquery-ui is hardcoded in some call. For example:
+
+        response.files.append(URL(r=request, c='static/jqueryui/css/smoothness',
+            f='jquery-ui-1.8.12.custom.css'))
+
+    This requires jquery-ui version 1.8.12. If the user upgrades to 1.8.13 say
+    the code needs to be changed. Not ideal.
+
+    Is there a way around this? Symlinks possibly? Do web2py people have a
+    preferred way of doing this?
+
+
+class JqGrid
+def data
+[ ] Create a data method to simplify the get_rows function.
+    I'd like the get get_rows controller function to be reduced to this:
+
+        @service.json
+        def get_rows():
+            return JqGrid().data()
+
+    Create a 'data' method in JqGrid to handle that.
+
+
+class JqGrid
+def pager
+[ ] Convert the XML() to DIV()
+
+class JqGrid
+def list
+[ ] Convert the XML() to TABLE()
+
+
+class JqGrid
+def __init__
+[ ] Allow customizable ids.
+    The id's of the pager div and the list table are hard coded. That's not
+    ideal. I'd like them to have sensible defaults but allow the user to
+    override.
+    [ ] Add pager_div_id property to JqGrid class, default 'jqgrid_pager'
+    [ ] Add list_table_id property to JqGrid class, default 'jqgrid_list'
+
+def pager
+[ ] Set the id according to the class property
+
+def list
+[ ] Set the id according to the class property
+
+def script
+[ ] Set the pager id according to the class property
+[ ] Set the list id according to the class property
+
+class JqGrid
+def __call__
+[ ] Simplify the view to a one liner
+    Currently the code in the view is:
+        {{=jqgrid.script()}}
+        {{=jqgrid.list()}}
+        {{=jqgrid.pager()}}
+
+    I'd like that reduced to
+        {{=jqgrid()}}
+
+    Add a __call__ method to the class to make that possible.
+
+
+I have some other ideas but I'll save them for Phase II. If at any point during
+the development you come across a show stopper, something I've overlooked that
+may prevent implementation of this idea, hold off on going any further and let
+me know of the issue. It doesn't make sense to continue until resolve issues.
+If you have any ideas on improving this spec, by all means I am open to
+suggestions.
+
+
+Links
+-----
+
+jqgrid documentation (wiki):
+    http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options
+
+jqgrid options
+    http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options
+
+jqgrid methods
+    http://www.trirand.com/jqgridwiki/doku.php?id=wiki:methods

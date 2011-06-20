@@ -1,0 +1,261 @@
+Ray,
+
+Looks good. I am confident this is going to work. I have a few comments
+before we move on. Let me know what you think.
+
+
+Syntax
+------
+
+I would think most web2py developers are more familiar with the standard
+return dict() syntax. Even if it takes more than one line, can you demonstrate
+how that would be done::
+
+    return {'':JQGRID({'url':...})()}           # yours
+    return dict(''=JQGRID({'url':...})())       # Doesn't work
+
+.. note::
+
+    I would like to say, dict(foo='bar') is not more standard than {'foo':'bar'}.
+    In fact, they are equivalent to each other (if not taking their literal
+    charactors length into account). You can confirm that by::
+
+        print dict(foo='bar') # Note that foo has no quotation mark!
+
+    Python interpreter will output exactly {'foo': 'bar'}
+
+    With one exception that, {'': 'bar'} is legitimate, but not these::
+
+        dict(='bar') or dict(''='bar') # Syntax error. That's why "doesn't work".
+
+    So the {'foo': 'bar'} convention is actually more flexible than dict(...).
+    Another reason I personally prefer the {'foo': 'bar'} convention is that,
+    the curly brace clearly indicates a dict. After all, curly brace in python
+    only appears in dict definition, but parenthesis appears in tuple,
+    normal expression, function definition and function invoking, etc. ...
+
+    By the way, this is a python thing, not a web2py thing. Many web2py apps
+    uses dict(...) more often, only because its author Massimo happens to use
+    this style in scaffold app, then everyone else just follows but without
+    really thinking why or whether it should be in that way.
+
+    But you are the boss. If you insist, I can modify all the demo in my next
+    deliverable to the dict(variable_name = 'content') style. That will be::
+
+        return dict(jqgrid=JQGRID({'url':URL(...),......})())
+
+
+To clarify, your solution works but the controller code is very heavy on braces
+and brackets. I'd like something simpler and more web2py looking.
+
+Compare:
+
+    return {'':JQGRID({
+        'url': URL(r=request, f='call', args=['json', 'get_rows2'])
+        })()}
+
+with
+
+    return dict(jqgrid=JQGRID('get_rows2'))
+
+.. note::
+
+    We will discuss this in the later "URL" section.
+
+
+
+Examples
+--------
+
+Could you provide a few more examples of usage.
+
+demo3: Demostrate how to sub class JQGRID
+
+demo4: Demostrate how to use it within a view
+
+        # views/default/demo4
+        <h1>JqGrid Demo</h1>
+        {{=jqgrid()}}
+
+.. note::
+
+    def demo3():
+        class TalkativeJqgrid(JqGrid):
+            # Usually only template is worthy to override
+            template = '''
+                jQuery(document).ready(function(){
+                  alert("Ready to init a jqGrid!"); // Just a demo
+                  jQuery("#%(list_table_id)s").jqGrid({
+                    complete: function(jsondata, stat) {
+                        if (stat == "success") {
+                            var thegrid = jQuery("#%(list_table_id)s")[0];
+                            thegrid.addJSONData(JSON.parse(jsondata.responseText).d);
+                        }
+                    },
+                    %(basic_options)s
+                  });
+                  jQuery("#%(list_table_id)s").jqGrid('navGrid', '#%(pager_div_id)s',
+                    {search: true, add: true,
+                     edit: true, del: true // I've changed here too
+                    });
+                  alert("jqGrid is loading/loaded!"); // Just a demo
+                });''' # Warn: Make sure you keep those %(...)s intact
+            # def data(self): return ['something new'] # You might need this too
+        return dict(jqgrid=TalkativeJqgrid({
+            'url': URL(f='call', args=['json', 'get_rows2']), # must
+            'colNames': ['ID', 'Name'], # must
+            'colModel': [ # must
+                {'name': 'id', 'index': 'id', 'width': 55},
+                {'name': 'name', 'index': 'name'},
+                ],
+            })())
+
+    # views/default/demo3.html (is optional)
+    {{extend 'layout.html'}}
+    <h1>JqGrid Demo3</h1>
+    {{=jqgrid}} <!-- It is not jqgrid() -->
+
+
+
+URL
+---
+
+If something is required in the jqgrid_options then does it make sense to make
+it a required parameter for the JQGRID class? Ignore the colNames and colModel,
+for now, we may take care of them in the next phase. Should 'url' be a parameter
+of JQGRID?
+
+For example
+    def demo2
+
+        url = URL(r=request, f='call', args=['json', 'get_rows2'])
+        jqgrid_options = {
+            'colNames': ['ID', 'Name'],
+            'colModel': [
+                {'name': 'id', 'index': 'id', 'width': 55},
+                {'name': 'name', 'index': 'name'},
+                ],
+            }
+    return {'':JQGRID(url, jqgrid_options)()}
+
+.. note::
+
+    Strongly not recommended.
+
+    Logically, "url" is indeed a parameter needed by the underlying jqgrid, and
+    will be inserted into the jQuery("#jqgrid_list").jqGrid({...}) javascript.
+    Other current JQGRID parameters aren't. So they're fundamentally different.
+
+    And if you look under the hood, it would bring unnecessary complexity to the
+    implementation if we mixed up the above two different kinds of parameters.
+
+    Believe me, the current implementation is the shortest possible, therefore
+    the most robust, understandable, maintainable. I tried some different
+    approach before I refactor to this final state-of-art outcome. In recent
+    days I spend lots effort to refine some two hundred lines of kernel code
+    into two dozen. They have more value than what their simple appearance
+    indicates.
+
+
+
+Also, if the url points to a function in the same controller, functions like
+redirect can use a simplified version, just naming the function.
+
+    # Redirect to index function
+    redirect('index')
+
+Could we do something similar:
+    def demo2
+        jqgrid_options = {...}
+        return {'':JQGRID('get_rows2', jqgrid_options)()}
+
+.. note::
+
+    So we agree to have::
+
+        url = URL(r=request, f='call', args=['json', 'get_rows2'])
+
+    remain in jqgrid_options. You can omit the "r=request" part. Simplify a bit.
+
+
+
+Response Variable
+-----------------
+
+The response instance variable is hard coded in the JQGRID script() method.
+Will that work if the class is defined outside the model, say in a module
+package?
+
+Some suggestions:
+1. Make it a parameter to __call__() and script().
+
+    def script(self, response):
+        response.files.extend(self.supplement)
+        return SCRIPT(self.template%self.__dict__)
+
+    def __call__(self, response):
+        return DIV(self.script(response), self.list(), self.pager())
+
+2. Make it a class instance property
+
+
+.. note::
+
+    As long as the class JQGRID is placed inside default.py or db.py, web2py
+    guarantees a response variable available in global scope. So that hardcode
+    is fine so far.
+
+    Will change that when JQGRID is migrating into a module. The detail
+    implementation will need more consideration than your suggestion.
+
+
+
+Response Files
+--------------
+
+Does it make sense for the jqgrid class to provide a default for the response
+files? Currently the default supplement property is an empty list. The
+questionable files are the jquery-ui ones. They aren't associated with jqgrid
+so their location is an unknown, and the files have version numbers in them
+which are variable.
+
+
+Here's my suggestion:
+
+    class JQGRID(object):
+
+        supplement = [
+            URL(r=request, c='static/css', f='jquery-ui.css'),
+            URL(r=request, c='static/jquery.jqGrid/css', f='ui.jqgrid.css'),
+            URL(r=request, c='static/js', f='jquery-ui.js'),
+            URL(r=request, c='static/jquery.jqGrid/src/i18n', f='grid.locale-en.js'),
+            URL(r=request, c='static/jquery.jqGrid/js', f='jquery.jqGrid.min.js'), ]
+
+The coder can always modify it with a subclass.
+
+This may cause another problem though. How do we get the 'request' variable.
+
+
+.. note::
+
+    I used to think that, theoretically it is caller's duty to provide supplement
+    information to JQGRID class. So currently supplement is empty by default.
+
+    But, on a second thought, it doesn't harm if JQGRID class has its default
+    assumption. So, as long as class JQGRID is defined in model, you can simply
+    use your above code to replace the current supplement=[]. Problem solved.
+
+    When class JQGRID goes into a module in future, I will need to figure out a
+    simplest way to pass the 'request' variable, as well as the 'response' we
+    mentioned above.
+
+
+Variable Names
+--------------
+
+Is the class name JqGrid more pep8 style than JQGRID?
+Would 'response_files' be a better name than 'supplement'?
+
+.. note::
+
+    As your wish. JQGRID will become JqGrid from now on. Also "response_files".
