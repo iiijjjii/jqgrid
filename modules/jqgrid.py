@@ -53,7 +53,8 @@ Requirements (by default they come with the JqGrid standalone app):
         static/jqgrid
 
     jQuery-ui
-        The default implementation expects to find the following jquery_ui files.
+        The default implementation expects to find the following jquery_ui
+        files.
         static/jqueryui/css/jquery-ui.custom.css
         static/jqueryui/js/jquery-ui.custom.js
 
@@ -76,6 +77,8 @@ def JQGRID(environment, table):
                 JQGRID(globals(), db.things),
                 )}
     """
+    # C0103: *Invalid name "%s" (should match %s)*
+    # pylint: disable=C0103
     return JqGrid(environment, table)()
 
 
@@ -150,13 +153,22 @@ class JqGrid(object):
             self.callbacks += '''
                 onSelectRow: function(id){
                     window.location.href = '%s'.replace('{id}', id);
-                },'''%select_callback_url
+                },''' % select_callback_url
 
+    @classmethod
+    def initialize_response_files(cls, environment, response_files=None):
+        """Append necessary files to response.files.
 
-    @classmethod # this way we need not bother to build a JqGrid instance first
-    def initialize_response_files(cls, environment, response_files=[]):
+        Args:
+            environment, eg globals()
+            response_files, list of urls of files
+
+        Example:
+            # In controller:
+            JqGrid.initialize_response_files(globals())
+        """
         appname = JqGrid.__module__.split('.')[1]   # Auto detect this app name
-        if not response_files: # then use default location
+        if not response_files:
             response_files = [URL(a=appname, c='static', f=x) for x in [
                     'jqueryui/css/smoothness/jquery-ui.custom.css',
                     'jqueryui/js/jquery-ui.custom.min.js',
@@ -166,7 +178,6 @@ class JqGrid(object):
                     ]]
         environment['response'].files.extend(response_files)
         return response_files
-
 
     def __call__(self):
         return DIV(self.script(), self.list(), self.pager())
@@ -185,6 +196,8 @@ class JqGrid(object):
             orderby: DAL orderby instance
             fields: list of table field names
         """
+        # W0212: *Access to a protected member %s of a client class*
+        # pylint: disable=W0212
         request = environment['request']
         rows = []
         page = int(request.vars.page)
@@ -215,10 +228,13 @@ class JqGrid(object):
                 records=total_records)
 
     def list(self):
+        """Return a HTML table representing jqgrid list."""
         return TABLE(_id=self.list_table_id)
 
     def pager(self):
+        """Return a HTML div representing jqgrid pager."""
         return DIV(_id=self.pager_div_id)
 
     def script(self):
+        """Return a HTML script representing jqgrid javascript."""
         return SCRIPT(Template(self.template).safe_substitute(self.__dict__))
