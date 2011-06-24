@@ -193,7 +193,8 @@ class JqGrid(object):
             environment: dict, eg: globals()
             table: DAL Table instance
             query: DAL Query instance
-            orderby: DAL orderby instance
+            orderby: DAL orderby instance, if None, the orderby is determined
+                by the request.vars.sidx and request.vars.sord.
             fields: list of table field names
         """
         # W0212: *Access to a protected member %s of a client class*
