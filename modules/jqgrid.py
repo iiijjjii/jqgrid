@@ -65,6 +65,7 @@ from gluon.html import DIV, SCRIPT, TABLE, URL
 from gluon.http import HTTP
 from string import Template
 import math
+import logging
 
 
 def JQGRID(environment, table):
@@ -110,8 +111,7 @@ class JqGrid(object):
             $callbacks
             $basic_options
           });
-          jQuery("#$list_table_id").jqGrid('navGrid', '#$pager_div_id',
-            {search: false, add: false, edit: false, del: false});
+          $extra
         });'''
 
     response_files = []         # Can be overrided in controller
@@ -123,6 +123,8 @@ class JqGrid(object):
         orderby=None,
         jqgrid_options=None,
         select_callback_url=None,
+        nav_grid_options=None,          # Use {...} to enable crud action(s)
+        filter_toolbar_options=None,    # Use {} to enable toolbar searching
         pager_div_id=None,
         list_table_id=None
         ):
@@ -153,31 +155,40 @@ class JqGrid(object):
             self.callbacks += '''
                 onSelectRow: function(id){
                     window.location.href = '%s'.replace('{id}', id);
-                },''' % select_callback_url
+                },'''%select_callback_url
+        self.extra = ''
+        if isinstance(nav_grid_options, dict):
+            self.extra += "jQuery('#%s').jqGrid('navGrid', '#%s', %s);"%(
+                self.list_table_id, self.pager_div_id, dumps(nav_grid_options))
+        if isinstance(filter_toolbar_options, dict):
+            self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);"%(
+                    self.list_table_id, dumps(filter_toolbar_options))
 
-    @classmethod
-    def initialize_response_files(cls, environment, response_files=None):
-        """Append necessary files to response.files.
 
+    @classmethod # this way we need not bother to build a JqGrid instance first
+    def initialize_response_files(cls, environment, response_files=[], lang='en'):
+        """Method for preparing response.files.
+
+        This is a class method because this will be called without a JqGrid
+        instance.
         Args:
-            environment, eg globals()
-            response_files, list of urls of files
-
-        Example:
-            # In controller:
-            JqGrid.initialize_response_files(globals())
+            environment: dict, should be: globals()
+            response_files: should be a list of url, to override the default
+            lang: e.g. 'en'. Valid names are those xx in
+                  static/jqgrid/js/i18n/grid.locale-xx.js
         """
         appname = JqGrid.__module__.split('.')[1]   # Auto detect this app name
-        if not response_files:
+        if not response_files: # then use default location
             response_files = [URL(a=appname, c='static', f=x) for x in [
                     'jqueryui/css/smoothness/jquery-ui.custom.css',
                     'jqueryui/js/jquery-ui.custom.min.js',
                     'jqgrid/css/ui.jqgrid.css',
-                    'jqgrid/js/i18n/grid.locale-en.js',
+                    'jqgrid/js/i18n/grid.locale-%s.js'%(lang or 'en'),
                     'jqgrid/js/jquery.jqGrid.min.js',
                     ]]
         environment['response'].files.extend(response_files)
         return response_files
+
 
     def __call__(self):
         return DIV(self.script(), self.list(), self.pager())
@@ -197,8 +208,6 @@ class JqGrid(object):
                 by the request.vars.sidx and request.vars.sord.
             fields: list of table field names
         """
-        # W0212: *Access to a protected member %s of a client class*
-        # pylint: disable=W0212
         request = environment['request']
         rows = []
         page = int(request.vars.page)
@@ -206,6 +215,20 @@ class JqGrid(object):
         limitby = (page * pagesize - pagesize, page * pagesize)
         if not query:
             query = table.id > 0
+        for k, v in request.vars.items():
+            #Only works when filter_toolbar_options != {stringResult:True, ...}
+            if k in table.fields and v:
+                if table[k].type in ('text','string'):
+                    query = query & table[k].startswith(v)
+                elif table[k].type in ('id', 'integer','float','double'):
+                    # intentionally not use exact matching
+                    query = query & (table[k].like(v+'%')) # startswith() fails
+                elif table[k].type.startswith('list:reference'):
+                    query = query & (table[k].contains(v))
+                elif table[k].type.startswith('reference'):
+                    query = query & (table[k]==int(v))
+                else:
+                    logging.warn('Unsupported %s: %s=%s'%(table[k].type, k, v))
         if orderby is None:
             assert request.vars.sidx in table, 'VirtualField is not sortable'
             if request.vars.sidx in table:

@@ -20,10 +20,11 @@ response.menu = [
     ('Helper', False, URL('html_helper'), []),
     ('Query&Orderby', False, URL('query_and_order_by'), []),
     ('Callback', False, URL('callback_demo'), []),
+    ('Searching', False, URL('toolbar_searching'), []),
     ]
 
 JqGrid = local_import('jqgrid', app='jqgrid', reload=True).JqGrid
-JqGrid.initialize_response_files(globals()) # Better have this
+JqGrid.initialize_response_files(globals(), lang='en') # Better have this
 
 def user():
     """
@@ -209,3 +210,28 @@ def callback_demo():
 
 def select_callback():
     return {'': 'You clicked #%s'%request.args}
+
+def toolbar_searching():
+    return dict(foo=JqGrid(globals(), db.things,
+            filter_toolbar_options = {
+                'searchOnEnter': # only support this option so far
+                    False # default is True
+                },
+            jqgrid_options = {
+                'colModel': [ # Use 'search':False to disable some columns
+                  {'name': 'id', 'width': 55},
+                  {'name': 'name'},
+                  {'name': 'category',
+                    'stype':'select',
+                    'editoptions':{
+                        'multiple':True,
+                        'value':":;"+';'.join('%s:%s'%(r['id'], r['name'])
+                            for r in db(db.category.id>0).select(
+                            db.category.id, db.category.name))
+                        },
+                    },
+                  {'name': 'price'},
+                  {'name': 'owner'}
+                ],
+                },
+            )())
