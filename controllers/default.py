@@ -219,9 +219,9 @@ def toolbar_searching():
                 },
             jqgrid_options = {
                 'colModel': [ # Use 'search':False to disable some columns
-                  {'name': 'id', 'width': 55},
-                  {'name': 'name'},
-                  {'name': 'category',
+                  {'name': 'id', 'index':'id', 'width': 55},
+                  {'name': 'name', 'index':'name'},
+                  {'name': 'category', 'index':'category',
                     'stype':'select',
                     'editoptions':{
                         'multiple':True,
@@ -230,8 +230,8 @@ def toolbar_searching():
                             db.category.id, db.category.name))
                         },
                     },
-                  {'name': 'price'},
-                  {'name': 'owner'}
+                  {'name': 'price', 'index':'price'},
+                  {'name': 'owner', 'index':'owner'}
                 ],
                 },
             )())

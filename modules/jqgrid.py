@@ -132,7 +132,8 @@ class JqGrid(object):
         options = dict(self.default_options)
         if jqgrid_options:
             options.update(jqgrid_options)
-        options.setdefault('colModel', [{'name':f} for f in table.fields])
+        options.setdefault(
+                'colModel', [{'name':f, 'index':f} for f in table.fields])
         if not 'colNames' in options:
             options['colNames'] = [table[item['name']].label
                     for item in options['colModel']]
@@ -229,6 +230,7 @@ class JqGrid(object):
                     query = query & (table[k]==int(v))
                 else:
                     logging.warn('Unsupported %s: %s=%s'%(table[k].type, k, v))
+        logging.debug('query = %s'%query)
         if orderby is None:
             assert request.vars.sidx in table, 'VirtualField is not sortable'
             if request.vars.sidx in table:
@@ -243,6 +245,7 @@ class JqGrid(object):
                 else:
                     vals.append(r[f])
             rows.append(dict(id=r.id, cell=vals))
+        logging.debug('SQL = %s'%table._db._lastsql)
         total_records = table._db(query).count()
         total_pages = int(math.ceil(total_records / float(pagesize)))
         return dict(
