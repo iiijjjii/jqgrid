@@ -98,9 +98,20 @@ class JqGrid(object):
         'viewrecords': True,
         'height': '300px'
         }
+    default_nav_edit_options = {} # e.g. {'width': 400, 'editCaption': '*'}
+    default_nav_add_options = {} # e.g. {'width': 400, 'addCaption': '+'}
+    default_nav_del_options = {} # e.g. {'width': 400, 'caption': '-'}
+    default_nav_search_options = {} # e.g. {'width': 400, 'caption': '?'}
+    default_nav_view_options = {} # e.g. {'width': 400, 'caption': '='}
 
     template = '''
         jQuery(document).ready(function(){
+          jQuery.extend(jQuery.jgrid.edit, { // for both add and edit
+            errorTextFormat: function(data){return data.responseText} // match cud()
+          });
+          jQuery.extend(jQuery.jgrid.del, {
+            errorTextFormat: function(data){return data.responseText} // match cud()
+          });
           jQuery("#$list_table_id").jqGrid({
             complete: function(jsondata, stat) {
                 if (stat == "success") {
@@ -124,10 +135,16 @@ class JqGrid(object):
         jqgrid_options=None,
         select_callback_url=None,
         nav_grid_options=None,          # Use {...} to enable crud action(s)
+        nav_edit_options={},
+        nav_add_options={},
+        nav_del_options={},
+        nav_search_options={},
+        nav_view_options={},
         filter_toolbar_options=None,    # Use {} to enable toolbar searching
         pager_div_id=None,
         list_table_id=None
         ):
+        request = environment['request']
         self.table = table
         options = dict(self.default_options)
         if jqgrid_options:
@@ -137,14 +154,18 @@ class JqGrid(object):
         if not 'colNames' in options:
             options['colNames'] = [table[item['name']].label
                     for item in options['colModel']]
-        options.setdefault('url', URL(r=environment['request'],
-                args=['data', table], vars=environment['request'].vars))
-        if environment['request'].args(0) == 'data' and \
-                environment['request'].args(1) == str(table):
+        options.setdefault('url', URL(r=request,
+                # No need for URL(..., hmac_hash=...) here,
+                # because even tampered url won't get access to other table
+                args=['data', table], vars=request.vars))
+        if request.args[:2] == ['data', str(table)]:
             environment['response'].view = 'generic.json'
             raise HTTP(200, environment['response'].render(self.data(
                     environment, table, query=query, orderby=orderby,
                     fields=[v.get('name') for v in options['colModel']])))
+        options.setdefault('editurl', URL(r=request, args=['cud', table]))
+        if request.args[:2] == ['cud', str(table)]:
+            raise HTTP(200, self.cud(environment, table))
         options.setdefault('caption', 'Data of %s' % table)
         options['pager'] = self.pager_div_id = pager_div_id or \
                 ('jqgrid_pager_%s' % table)
@@ -159,15 +180,25 @@ class JqGrid(object):
                 },'''%select_callback_url
         self.extra = ''
         if isinstance(nav_grid_options, dict):
-            self.extra += "jQuery('#%s').jqGrid('navGrid', '#%s', %s);"%(
-                self.list_table_id, self.pager_div_id, dumps(nav_grid_options))
+            self.default_nav_edit_options.update(nav_edit_options)
+            self.default_nav_add_options.update(nav_add_options)
+            self.default_nav_del_options.update(nav_del_options)
+            self.default_nav_search_options.update(nav_search_options)
+            self.default_nav_view_options.update(nav_view_options)
+            self.extra += \
+                "jQuery('#%s').jqGrid('navGrid', '#%s', %s, %s,%s,%s,%s,%s);"%(
+                self.list_table_id, self.pager_div_id, dumps(nav_grid_options),
+                self.default_nav_edit_options, self.default_nav_add_options,
+                self.default_nav_del_options, self.default_nav_search_options,
+                self.default_nav_view_options)
         if isinstance(filter_toolbar_options, dict):
             self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);"%(
                     self.list_table_id, dumps(filter_toolbar_options))
 
 
     @classmethod # this way we need not bother to build a JqGrid instance first
-    def initialize_response_files(cls, environment, response_files=[], lang='en'):
+    def initialize_response_files(cls, environment, response_files=[],
+            lang='en', theme='ui-lightness'):
         """Method for preparing response.files.
 
         This is a class method because this will be called without a JqGrid
@@ -177,11 +208,12 @@ class JqGrid(object):
             response_files: should be a list of url, to override the default
             lang: e.g. 'en'. Valid names are those xx in
                   static/jqgrid/js/i18n/grid.locale-xx.js
+            theme: e.g. 'smoothness' or 'ui-lightness', etc.
         """
         appname = JqGrid.__module__.split('.')[1]   # Auto detect this app name
         if not response_files: # then use default location
             response_files = [URL(a=appname, c='static', f=x) for x in [
-                    'jqueryui/css/smoothness/jquery-ui.custom.css',
+                    'jqueryui/css/%s/jquery-ui.custom.css'%theme,
                     'jqueryui/js/jquery-ui.custom.min.js',
                     'jqgrid/css/ui.jqgrid.css',
                     'jqgrid/js/i18n/grid.locale-%s.js'%(lang or 'en'),
@@ -253,6 +285,32 @@ class JqGrid(object):
                 page=min(page, total_pages),
                 rows=rows,
                 records=total_records)
+
+    @classmethod
+    def cud(self, environment, table):
+        "Create/update/delete callback, defined by editurl option."
+        request = environment['request']
+        crud = environment['crud'] # Caller must supply a proper crud instance
+        if request.vars.oper=='del' and request.vars.id:
+            for del_id in request.vars.id.split(','):
+                crud.delete(table, del_id)
+        elif request.vars.oper in ['edit', 'add'] and request.vars.id:
+            for k, v in request.post_vars.items():
+                if k in table and table[k].type.startswith('list:'):
+                    # translate list value from jqgrid format into web2py format
+                    request.post_vars[k] = filter(None, v.split(','))
+
+            # A dirty hack, so this action will do submit for every visit,
+            # with little cost of losing double-submit-protection, see here:
+            # http://groups.google.com/group/web2py/msg/fa9d5104257d66a6
+            crud.environment.session = None
+
+            form = crud.update(table,
+                    request.vars.id if request.vars.id!='_empty' else None,
+                    formname=None) # another magic
+            if form.errors:
+                raise HTTP(406,
+                    ', '.join('%s:%s'%(k,v) for k,v in form.errors.items()))
 
     def list(self):
         """Return a HTML table representing jqgrid list."""

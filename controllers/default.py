@@ -24,7 +24,10 @@ response.menu = [
     ]
 
 JqGrid = local_import('jqgrid', app='jqgrid', reload=True).JqGrid
-JqGrid.initialize_response_files(globals(), lang='en') # Better have this
+JqGrid.initialize_response_files(globals(), # Better have this explicitly
+        theme='ui-lightness', # web2py's default base.css conflicts with smoothness
+        lang='en')
+
 
 def user():
     """
