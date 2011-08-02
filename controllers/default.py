@@ -155,6 +155,11 @@ def using_a_view_2(): # there is a view file for this
     return dict(jqgrid_callable_instance=JqGrid(globals(), db.category))
     # Get rid of the "()", if you prefer.
 
+def two_in_one():
+    return dict( # grids with different setting will not interfere each other
+        grid1=JqGrid(globals(), db.things, nav_grid_options={'edit':False})(),
+        grid2=JqGrid(globals(), db.category, nav_grid_options={'add':False})())
+
 def a_container_page_using_component():
     # Here we assume you've invoked JqGrid.initialize_response_files(globals())
     return dict(blah = DIV( # Oh yes, you can move all following stuff into the view file.

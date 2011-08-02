@@ -98,6 +98,7 @@ class JqGrid(object):
         'viewrecords': True,
         'height': '300px'
         }
+    default_nav_grid_options = {'search': False} # not yet supported
     default_nav_edit_options = {} # e.g. {'width': 400, 'editCaption': '*'}
     default_nav_add_options = {} # e.g. {'width': 400, 'addCaption': '+'}
     default_nav_del_options = {} # e.g. {'width': 400, 'caption': '-'}
@@ -180,17 +181,23 @@ class JqGrid(object):
                 },'''%select_callback_url
         self.extra = ''
         if isinstance(nav_grid_options, dict):
-            self.default_nav_edit_options.update(nav_edit_options)
-            self.default_nav_add_options.update(nav_add_options)
-            self.default_nav_del_options.update(nav_del_options)
-            self.default_nav_search_options.update(nav_search_options)
-            self.default_nav_view_options.update(nav_view_options)
+            grid_options = dict(self.default_nav_grid_options)
+            grid_options.update(nav_grid_options)
+            edit_options = dict(self.default_nav_edit_options)
+            edit_options.update(nav_edit_options)
+            add_options = dict(self.default_nav_add_options)
+            add_options.update(nav_add_options)
+            del_options = dict(self.default_nav_del_options)
+            del_options.update(nav_del_options)
+            search_options = dict(self.default_nav_search_options)
+            search_options.update(nav_search_options)
+            view_options = dict(self.default_nav_view_options)
+            view_options.update(nav_view_options)
             self.extra += \
                 "jQuery('#%s').jqGrid('navGrid', '#%s', %s, %s,%s,%s,%s,%s);"%(
-                self.list_table_id, self.pager_div_id, dumps(nav_grid_options),
-                self.default_nav_edit_options, self.default_nav_add_options,
-                self.default_nav_del_options, self.default_nav_search_options,
-                self.default_nav_view_options)
+                self.list_table_id, self.pager_div_id, dumps(grid_options),
+                dumps(edit_options), dumps(add_options), dumps(del_options),
+                dumps(search_options), dumps(view_options))
         if isinstance(filter_toolbar_options, dict):
             self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);"%(
                     self.list_table_id, dumps(filter_toolbar_options))
@@ -296,9 +303,12 @@ class JqGrid(object):
                 crud.delete(table, del_id)
         elif request.vars.oper in ['edit', 'add'] and request.vars.id:
             for k, v in request.post_vars.items():
-                if k in table and table[k].type.startswith('list:'):
-                    # translate list value from jqgrid format into web2py format
-                    request.post_vars[k] = filter(None, v.split(','))
+                if k in table:
+                    # translate value from jqgrid format into web2py format
+                    if table[k].type.startswith('list:'):
+                        request.post_vars[k] = filter(None, v.split(','))
+                    elif table[k].type == 'boolean':
+                        request.post_vars[k] = v=='on'
 
             # A dirty hack, so this action will do submit for every visit,
             # with little cost of losing double-submit-protection, see here:
