@@ -1,0 +1,9 @@
+{{extend 'layout.html'}}
+<h1>Components Using View</h1>
+<div>
+<h4>Jqgrid displayed with a component using a view!</h4>
+{{=LOAD(request.controller, 'minimal.load')}}
+<hr />
+<h4>Even better, multiple JqGrid components can appear on the same page!</h4>
+{{=LOAD(request.controller, 'using_a_view.load')}}
+</div>

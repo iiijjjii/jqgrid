@@ -96,22 +96,26 @@ class JqGrid(object):
         'sortname': 'id',
         'sortorder': 'desc',
         'viewrecords': True,
-        'height': '300px'
+        'height': '300px',
         }
-    default_nav_grid_options = {'search': False} # not yet supported
-    default_nav_edit_options = {} # e.g. {'width': 400, 'editCaption': '*'}
-    default_nav_add_options = {} # e.g. {'width': 400, 'addCaption': '+'}
-    default_nav_del_options = {} # e.g. {'width': 400, 'caption': '-'}
-    default_nav_search_options = {} # e.g. {'width': 400, 'caption': '?'}
-    default_nav_view_options = {} # e.g. {'width': 400, 'caption': '='}
+    default_nav_grid_options = {'search': False}    # not yet supported
+    default_nav_edit_options = {}   # e.g. {'width': 400, 'editCaption': '*'}
+    default_nav_add_options = {}    # e.g. {'width': 400, 'addCaption': '+'}
+    default_nav_del_options = {}    # e.g. {'width': 400, 'caption': '-'}
+    default_nav_search_options = {}     # e.g. {'width': 400, 'caption': '?'}
+    default_nav_view_options = {}   # e.g. {'width': 400, 'caption': '='}
 
     template = '''
         jQuery(document).ready(function(){
           jQuery.extend(jQuery.jgrid.edit, { // for both add and edit
-            errorTextFormat: function(data){return data.responseText} // match cud()
+            errorTextFormat: function(data){
+                return data.responseText;        // match cud()
+            }
           });
           jQuery.extend(jQuery.jgrid.del, {
-            errorTextFormat: function(data){return data.responseText} // match cud()
+            errorTextFormat: function(data){
+                return data.responseText;        // match cud()
+            }
           });
           jQuery("#$list_table_id").jqGrid({
             complete: function(jsondata, stat) {
@@ -136,11 +140,11 @@ class JqGrid(object):
         jqgrid_options=None,
         select_callback_url=None,
         nav_grid_options=None,          # Use {...} to enable crud action(s)
-        nav_edit_options={},
-        nav_add_options={},
-        nav_del_options={},
-        nav_search_options={},
-        nav_view_options={},
+        nav_edit_options=None,
+        nav_add_options=None,
+        nav_del_options=None,
+        nav_search_options=None,
+        nav_view_options=None,
         filter_toolbar_options=None,    # Use {} to enable toolbar searching
         pager_div_id=None,
         list_table_id=None
@@ -154,6 +158,9 @@ class JqGrid(object):
                 'colModel', [{'name':f, 'index':f} for f in table.fields])
         if not 'colNames' in options:
             options['colNames'] = [table[item['name']].label
+                    if item['name'] in table else
+                    ' '.join(word.capitalize()
+                        for word in item['name'].split('_'))
                     for item in options['colModel']]
         options.setdefault('url', URL(r=request,
                 # No need for URL(..., hmac_hash=...) here,
@@ -178,33 +185,32 @@ class JqGrid(object):
             self.callbacks += '''
                 onSelectRow: function(id){
                     window.location.href = '%s'.replace('{id}', id);
-                },'''%select_callback_url
+                },''' % select_callback_url
         self.extra = ''
         if isinstance(nav_grid_options, dict):
             grid_options = dict(self.default_nav_grid_options)
-            grid_options.update(nav_grid_options)
+            grid_options.update(nav_grid_options or {})
             edit_options = dict(self.default_nav_edit_options)
-            edit_options.update(nav_edit_options)
+            edit_options.update(nav_edit_options or {})
             add_options = dict(self.default_nav_add_options)
-            add_options.update(nav_add_options)
+            add_options.update(nav_add_options or {})
             del_options = dict(self.default_nav_del_options)
-            del_options.update(nav_del_options)
+            del_options.update(nav_del_options or {})
             search_options = dict(self.default_nav_search_options)
-            search_options.update(nav_search_options)
+            search_options.update(nav_search_options or {})
             view_options = dict(self.default_nav_view_options)
-            view_options.update(nav_view_options)
+            view_options.update(nav_view_options or {})
             self.extra += \
-                "jQuery('#%s').jqGrid('navGrid', '#%s', %s, %s,%s,%s,%s,%s);"%(
-                self.list_table_id, self.pager_div_id, dumps(grid_options),
+                "jQuery('#%s').jqGrid('navGrid', '#%s', %s, %s,%s,%s,%s,%s);" \
+                % (self.list_table_id, self.pager_div_id, dumps(grid_options),
                 dumps(edit_options), dumps(add_options), dumps(del_options),
                 dumps(search_options), dumps(view_options))
         if isinstance(filter_toolbar_options, dict):
-            self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);"%(
+            self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);" % (
                     self.list_table_id, dumps(filter_toolbar_options))
 
-
-    @classmethod # this way we need not bother to build a JqGrid instance first
-    def initialize_response_files(cls, environment, response_files=[],
+    @classmethod    # this way a JqGrid instance is not required
+    def initialize_response_files(cls, environment, response_files=None,
             lang='en', theme='ui-lightness'):
         """Method for preparing response.files.
 
@@ -218,17 +224,16 @@ class JqGrid(object):
             theme: e.g. 'smoothness' or 'ui-lightness', etc.
         """
         appname = JqGrid.__module__.split('.')[1]   # Auto detect this app name
-        if not response_files: # then use default location
+        if not response_files:      # then use default location
             response_files = [URL(a=appname, c='static', f=x) for x in [
-                    'jqueryui/css/%s/jquery-ui.custom.css'%theme,
+                    'jqueryui/css/%s/jquery-ui.custom.css' % theme,
                     'jqueryui/js/jquery-ui.custom.min.js',
                     'jqgrid/css/ui.jqgrid.css',
-                    'jqgrid/js/i18n/grid.locale-%s.js'%(lang or 'en'),
+                    'jqgrid/js/i18n/grid.locale-%s.js' % (lang or 'en'),
                     'jqgrid/js/jquery.jqGrid.min.js',
                     ]]
         environment['response'].files.extend(response_files)
         return response_files
-
 
     def __call__(self):
         return DIV(self.script(), self.list(), self.pager())
@@ -258,18 +263,19 @@ class JqGrid(object):
         for k, v in request.vars.items():
             #Only works when filter_toolbar_options != {stringResult:True, ...}
             if k in table.fields and v:
-                if table[k].type in ('text','string'):
+                if table[k].type in ('text', 'string'):
                     query = query & table[k].startswith(v)
-                elif table[k].type in ('id', 'integer','float','double'):
+                elif table[k].type in ('id', 'integer', 'float', 'double'):
                     # intentionally not use exact matching
-                    query = query & (table[k].like(v+'%')) # startswith() fails
+                    # note: startswith() fails
+                    query = query & (table[k].like(v + '%'))
                 elif table[k].type.startswith('list:reference'):
                     query = query & (table[k].contains(v))
                 elif table[k].type.startswith('reference'):
-                    query = query & (table[k]==int(v))
+                    query = query & (table[k] == int(v))
                 else:
-                    logging.warn('Unsupported %s: %s=%s'%(table[k].type, k, v))
-        logging.debug('query = %s'%query)
+                    logging.warn('Unsupported %s: %s=%s', table[k].type, k, v)
+        logging.debug('query = %s', query)
         if orderby is None:
             assert request.vars.sidx in table, 'VirtualField is not sortable'
             if request.vars.sidx in table:
@@ -284,7 +290,7 @@ class JqGrid(object):
                 else:
                     vals.append(r[f])
             rows.append(dict(id=r.id, cell=vals))
-        logging.debug('SQL = %s'%table._db._lastsql)
+        logging.debug('SQL = %s', table._db._lastsql)
         total_records = table._db(query).count()
         total_pages = int(math.ceil(total_records / float(pagesize)))
         return dict(
@@ -294,11 +300,14 @@ class JqGrid(object):
                 records=total_records)
 
     @classmethod
-    def cud(self, environment, table):
+    def cud(cls, environment, table):
         "Create/update/delete callback, defined by editurl option."
         request = environment['request']
-        crud = environment['crud'] # Caller must supply a proper crud instance
-        if request.vars.oper=='del' and request.vars.id:
+        crud = environment['crud']    # Caller must supply proper crud instance
+        crud.settings.create_next = None
+        crud.settings.update_next = None
+        crud.settings.delete_next = None
+        if request.vars.oper == 'del' and request.vars.id:
             for del_id in request.vars.id.split(','):
                 crud.delete(table, del_id)
         elif request.vars.oper in ['edit', 'add'] and request.vars.id:
@@ -306,9 +315,9 @@ class JqGrid(object):
                 if k in table:
                     # translate value from jqgrid format into web2py format
                     if table[k].type.startswith('list:'):
-                        request.post_vars[k] = filter(None, v.split(','))
+                        request.post_vars[k] = [x for x in v.split(',') if x]
                     elif table[k].type == 'boolean':
-                        request.post_vars[k] = v=='on'
+                        request.post_vars[k] = (v == 'on')
 
             # A dirty hack, so this action will do submit for every visit,
             # with little cost of losing double-submit-protection, see here:
@@ -316,11 +325,13 @@ class JqGrid(object):
             crud.environment.session = None
 
             form = crud.update(table,
-                    request.vars.id if request.vars.id!='_empty' else None,
-                    formname=None) # another magic
+                    request.vars.id if request.vars.id != '_empty' else None,
+                    formname=None)      # another magic
             if form.errors:
                 raise HTTP(406,
-                    ', '.join('%s:%s'%(k,v) for k,v in form.errors.items()))
+                    ',<br />'.join('%s:%s' % (form.table[k].label, v)
+                        for k, v in form.errors.items())
+                    )
 
     def list(self):
         """Return a HTML table representing jqgrid list."""
