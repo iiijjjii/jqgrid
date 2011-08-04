@@ -165,14 +165,14 @@ class JqGrid(object):
         options.setdefault('url', URL(r=request,
                 # No need for URL(..., hmac_hash=...) here,
                 # because even tampered url won't get access to other table
-                args=['data', table], vars=request.vars))
-        if request.args[:2] == ['data', str(table)]:
+                args=request.args + ['data', str(table)], vars=request.vars))
+        if request.args[-2:] == ['data', str(table)]:
             environment['response'].view = 'generic.json'
             raise HTTP(200, environment['response'].render(self.data(
                     environment, table, query=query, orderby=orderby,
                     fields=[v.get('name') for v in options['colModel']])))
-        options.setdefault('editurl', URL(r=request, args=['cud', table]))
-        if request.args[:2] == ['cud', str(table)]:
+        options.setdefault('editurl', URL(r=request, args=request.args + ['cud', table]))
+        if request.args[-2:] == ['cud', str(table)]:
             raise HTTP(200, self.cud(environment, table))
         options.setdefault('caption', 'Data of %s' % table)
         options['pager'] = self.pager_div_id = pager_div_id or \

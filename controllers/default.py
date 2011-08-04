@@ -29,6 +29,7 @@ response.menu = [
         ]),
     ('Custom Queries', False, URL('custom_query'), [
         ('Custom Query', False, URL('custom_query'), []),
+        ('Custom Query 2', False, URL('custom_query_2'), []),
         ('Custom Orderby', False, URL('custom_orderby'), []),
         ]),
     ('Callback', False, URL('callback_demo'), []),
@@ -299,6 +300,23 @@ def custom_query():
         query=db.things.price > 500,            # just to illustrate
         jqgrid_options={
             'caption': "Custom query: Only records with price > 500 displayed"
+            },
+        )())
+
+
+def custom_query_2():
+    """Illustrates populating jqgrid table with a custom query.
+
+    Like custom_query except the query variable is dynamic, obtained from
+    request.args(0).
+    """
+    categories = db(db.category.id > 0).select(limitby=(0,6))
+    return dict(categories=categories, jqgrid=JqGrid(
+        globals(),
+        db.things,
+        query=db.things.category==request.args(0),
+        jqgrid_options={
+            'caption': "Custom query: Click links above to filter by category."
             },
         )())
 

@@ -1,0 +1,6 @@
+{{extend 'layout.html'}}
+<h1>Custom Query 2</h1>
+{{for category in categories:}}
+<a href="{{=URL(r=request, f='custom_query_2', args=[category.id])}}">{{=category.name}}</a>
+{{pass}}
+{{=jqgrid}}
