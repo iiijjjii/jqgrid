@@ -5,6 +5,8 @@ default.py
 
 This controller is used to illustrate usage of the jqgrid module.
 """
+import logging
+import math
 
 response.menu = [
     ('Minimal', False, URL('minimal'), []),
@@ -29,9 +31,11 @@ response.menu = [
         ]),
     ('Custom Queries', False, URL('custom_query'), [
         ('Custom Query', False, URL('custom_query'), []),
-        ('Custom Query 2', False, URL('custom_query_2'), []),
+        ('Custom Query 2', False, URL('custom_query_2', args=[1]), []),
         ('Custom Orderby', False, URL('custom_orderby'), []),
+        ('Complex Query', False, URL('complex_query', args=[1]), []),
         ]),
+    ('Web Service', False, URL('web service'), []),
     ('Callback', False, URL('callback_demo'), []),
     ('Searching', False, URL('toolbar_searching'), [
         ('Toolbar Searching', False, URL('toolbar_searching'), []),
@@ -346,6 +350,184 @@ def custom_orderby():
             'Sorts by price DESC, name DESC'
             )},
         )())
+
+
+class ComplexJqGrid(JqGrid):
+
+    @classmethod
+    def data(cls, environment, table, query=None, orderby=None, fields=None):
+        """Method for accessing jqgrid row data.
+
+        # *** Changes from JqGrid method highlighted. ***
+
+        Args:
+            See JqGrid data method.
+        Returns
+            See JqGrid data method.
+        """
+
+        request = environment['request']
+        rows = []
+        page = int(request.vars.page)
+        pagesize = int(request.vars.rows)
+        limitby = (page * pagesize - pagesize, page * pagesize)
+        if not query:
+            query = table.id > 0
+        for k, v in request.vars.items():
+            #Only works when filter_toolbar_options != {stringResult:True, ...}
+            if k in table.fields and v:
+                if table[k].type in ('text', 'string'):
+                    query = query & table[k].startswith(v)
+                elif table[k].type in ('id', 'integer', 'float', 'double'):
+                    # intentionally not use exact matching
+                    # note: startswith() fails
+                    query = query & (table[k].like(v + '%'))
+                elif table[k].type.startswith('list:reference'):
+                    query = query & (table[k].contains(v))
+                elif table[k].type.startswith('reference'):
+                    query = query & (table[k] == int(v))
+                else:
+                    logging.warn('Unsupported %s: %s=%s', table[k].type, k, v)
+        logging.debug('query = %s', query)
+        if orderby is None:
+            assert request.vars.sidx in table, 'VirtualField is not sortable'
+            if request.vars.sidx in table:
+                orderby = table[request.vars.sidx]
+            if orderby and request.vars.sord == 'desc':
+                orderby = ~(orderby)
+        # *** Get data using left join ***
+        db = table._db
+        things = db(query).select(
+                db.things.ALL,
+                db.category.name,
+                left=db.category.on(db.things.category==db.category.id),
+                limitby=limitby, orderby=orderby,
+                )
+        for r in things:
+            # The category name is formatted (not very meaningful but
+            #   illustrates how it can be done.
+            # The things.markup column is a virtual column
+            # The reduced column is not found in any table.
+            vals = [
+                    r.things.name,
+                    '* %s *' % (r.category.name.upper()),
+                    r.things.cost,
+                    r.things.price,
+                    r.things.markup,
+                    'Reduced' if r.things.price < r.things.cost else '',    # No table column
+                    ]
+        # ***
+            rows.append(dict(id=r.things.id, cell=vals))
+        logging.debug('SQL = %s', table._db._lastsql)
+        total_records = table._db(query).count()
+        total_pages = int(math.ceil(total_records / float(pagesize)))
+        return dict(
+                total=total_pages,
+                page=min(page, total_pages),
+                rows=rows,
+                records=total_records)
+
+def complex_query():
+    """Illustrates displaying jqgrid table a complex query.
+
+    The jqgrid includes a custom query, selected fields from table including a
+    virtual field, a column with data not found in a table, accesses data with
+    a left join and formats data prior to display.
+
+    The ComplexJqGrid class has a custom data method. By overriding the JqGrid
+    data method, data can be arranged and formatted however you like, as long
+    as the number of fields in the rows match the fields in the colModel.
+    """
+    response.generic_patterns = ['html']
+
+    jqgrid = ComplexJqGrid(globals(), db.things,
+            jqgrid_options={
+                'colModel': [
+                    {'name': 'name', 'index': 'name'},
+                    {'name': 'category', 'index': 'category'},
+                    {'name': 'cost', 'index': 'cost', 'align': 'right'},
+                    {'name': 'price', 'index': 'price', 'align': 'right'},
+                    {'name': 'markup', 'index': 'markup', 'align': 'right'},
+                    {'name': 'reduced', 'index': 'reduced', 'align': 'center'},
+                    ],
+                'caption': 'Complex data representation',
+                'height': 300,
+                'sortname': 'cost',
+                'sortorder': 'desc',
+                },
+            query=db.things.category == request.args(0)
+            )
+    return dict(jqgrid=jqgrid())
+
+
+class WebServiceJqGrid(JqGrid):
+
+    @classmethod
+    def data(cls, environment, table, query=None, orderby=None, fields=None):
+        """Method for accessing jqgrid row data.
+
+        Args:
+            See JqGrid data method.
+        Returns
+            See JqGrid data method.
+        """
+        import urllib2
+        from xml.dom import minidom
+        request = environment['request']
+        rows = []
+        page = int(request.vars.page)
+        pagesize = int(request.vars.rows)
+        url = 'http://api.geonames.org/countryInfo?username=demo'
+        xmldoc = minidom.parse(urllib2.urlopen(url))
+        countries = []
+        for x in range(1, len(xmldoc.firstChild.childNodes)):
+            if not xmldoc.firstChild.childNodes[x].nodeName == 'country':
+                continue
+            vals = []
+            country = xmldoc.firstChild.childNodes[x]
+            for i in [1, 3, 13, 15]:
+                try:
+                    value = country.childNodes[i].firstChild.data,
+                except:
+                    value = ''
+                vals.append(value)
+            countries.append(dict(cell=vals))
+        try:
+            rows = countries[page * pagesize - pagesize: page * pagesize]
+        except:
+            rows = []
+        total_records = len(countries)
+        total_pages = int(math.ceil(total_records / float(pagesize)))
+        return dict(
+                total=total_pages,
+                page=min(page, total_pages),
+                rows=rows,
+                records=total_records)
+
+
+def web_service():
+    """Illustrates displaying jqgrid table with data accessed from a webservice.
+
+    The WebServiceJqGrid class has a custom data method.
+    """
+    response.generic_patterns = ['html']
+
+    jqgrid = WebServiceJqGrid(globals(), db.things,
+            orderby='',             # Prevent setting default
+            jqgrid_options={
+                'colModel': [
+                    {'name': 'code', 'index': 'code'},
+                    {'name': 'name', 'index': 'name'},
+                    {'name': 'continent', 'index': 'continent'},
+                    {'name': 'capital', 'index': 'capital'},
+                    ],
+                'caption': 'Countries of the world from geonames webservice',
+                'height': 400,
+                'sortname': 'code',
+                'sortorder': 'desc',
+                },
+            )
+    return dict(jqgrid=jqgrid())
 
 
 def callback_demo():

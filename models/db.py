@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # this file is released under public domain and you can use without limitations
 
+from decimal import Decimal, InvalidOperation
+
 #########################################################################
 ## This scaffolding model makes your app work on Google App Engine too
 #########################################################################
@@ -80,105 +82,36 @@ crud.settings.auth = None                      # =auth to enforce authorization 
 from gluon.contrib.populate import populate
 
 db.define_table('category',
-                Field('name', label='Name of Category'), format='%(name)s')
+                Field('name', label='Name of Category'),
+                format='%(name)s',
+                migrate=True,
+                )
 
 db.define_table('things',
                 Field('name'),
                 Field('quantity', 'integer'),
                 Field('owner'),
+                Field('cost','double'),
                 Field('price','double'),
-                Field('category', db.category))
+                Field('category', db.category),
+                migrate=True,
+                )
 
-#db.things.category.represent = v.name
+class ThingsVirtFields(object):
+    """Class representing virtual fields for firearm_catalog_price table"""
+    def markup(self):
+        """Virtual field method representing the firearm_catalog_price
+           markup.
+        """
+        two_places = Decimal(10) ** -2
+        try:
+            value = float(int(100 * self.things.price / self.things.cost)/100.0)
+        except (ZeroDivisionError, InvalidOperation):
+            value = 0
+        return str(value)       # Strings work in jqgrid, Decimal's do not
 
+db.things.virtualfields.append(ThingsVirtFields())
 
 if db(db.things.id > 0).count() == 0:
     populate(db.category, 40)
     populate(db.things, 1000)
-
-
-from gluon.contrib.simplejson import dumps
-class JqGrid_obsolete(object):
-    default_options = {
-        'data': {},
-        'datatype': 'json',
-        'mtype': 'GET',
-        'contentType': "application/json; charset=utf-8",
-        'rowNum': 30,
-        'rowList': [10, 20, 30],
-        'sortname': 'id',
-        'sortorder': 'desc',
-        'viewrecords': True,
-        'caption': 'Test Grid',
-        'height': '400px'
-        }
-    template = '''
-        jQuery(document).ready(function(){
-          jQuery("#%(list_table_id)s").jqGrid({
-            complete: function(jsondata, stat) {
-                if (stat == "success") {
-                    var thegrid = jQuery("#%(list_table_id)s")[0];
-                    thegrid.addJSONData(JSON.parse(jsondata.responseText).d);
-                }
-            },
-            %(basic_options)s
-          });
-          jQuery("#%(list_table_id)s").jqGrid('navGrid', '#%(pager_div_id)s',
-            {search: true, add: true, edit: false, del: false});
-        });''' # Can be changed in subclass
-    response_files = [ # experimental
-        URL(r=request, c='static/jqueryui/css/smoothness', f='jquery-ui-1.8.12.custom.css'),
-        URL(r=request, c='static/jquery.jqGrid/css', f='ui.jqgrid.css'),
-        URL(r=request, c='static/jqueryui/js', f='jquery-ui-1.8.12.custom.min.js'),
-        URL(r=request, c='static/jquery.jqGrid/src/i18n', f='grid.locale-en.js'),
-        URL(r=request, c='static/jquery.jqGrid/js', f='jquery.jqGrid.min.js'), ]
-
-    def __init__(self, table, jqgrid_options={}, pager_div_id='jqgrid_pager', list_table_id='jqgrid_list'):
-        assert jqgrid_options['url'], 'You need to define it'
-        self.table = table
-        options = dict(self.default_options)
-        options.update(jqgrid_options)
-        options.setdefault('colNames', [f.label for f in table])
-        options.setdefault('colModel', [{'name':f} for f in table.fields])
-        options['pager'] = self.pager_div_id = pager_div_id
-        self.list_table_id = list_table_id
-        self.basic_options = dumps(options)[
-            1:-1] # get rid of the quotation marks
-        response.files.extend(self.response_files)
-
-    def pager(self):
-        return DIV(_id=self.pager_div_id)
-
-    def list(self):
-        return TABLE(_id=self.list_table_id)
-
-    def script(self):
-        return SCRIPT(self.template%self.__dict__)
-
-    def __call__(self):
-        return DIV(self.script(), self.list(), self.pager())
-
-    @classmethod
-    def data(self, table, fields=[]):
-        # Implementation is mainly copied from original prototype
-        rows = []
-        page = int(request.vars.page)
-        pagesize = int(request.vars.rows)
-        limitby = (page * pagesize - pagesize, page * pagesize)
-        orderby = table[request.vars.sidx]
-        if request.vars.sord == 'desc':
-            orderby = ~orderby
-        for r in table._db(table.id > 0).select(limitby=limitby, orderby=orderby):
-            vals = []
-            for f in fields or table.fields:
-                rep = table[f].represent
-                if rep:
-                    vals.append(rep(r[f]))
-                else:
-                    vals.append(r[f])
-            rows.append(dict(id=r.id, cell=vals))
-        total = table._db(table.id > 0).count()
-        pages = int(total / pagesize)
-        #if total % pagesize == 0: pages -= 1
-
-        return dict(total=pages, page=page, rows=rows)
