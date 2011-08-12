@@ -599,6 +599,7 @@ def form_editing():
     http://www.trirand.com/jqgridwiki/doku.php?id=wiki:form_editing
     """
     response.generic_patterns = ['html']
+    JS_FUNCTION = local_import('jqgrid', reload=True).Raw
     return dict(foo=JqGrid(globals(), db.things,
         # as of 2011-08-03 navGrid Search not implemented
         nav_grid_options={'add': True, 'edit': True, 'del': True,
@@ -637,7 +638,21 @@ def form_editing():
                   'name': 'owner',
                   'index':'owner',
                   'editable': True,
-              }
+              },
+              {
+                  'name': 'expire',
+                  'index': 'expire',
+                  'width': 100,
+                  'editable': True,
+                  'editoptions': {
+                      'dataInit': JS_FUNCTION("""
+                          function(el) {
+                            setTimeout( function() {
+                                $(el).datepicker({dateFormat: 'yy-mm-dd'});
+                            }, 200);
+                          }"""),
+                  },
+              },
             ],
             'caption': 'Select row and click Add/Edit/Del icons in nav bar.',
             },
@@ -651,6 +666,7 @@ def form_editing_custom():
     http://www.trirand.com/jqgridwiki/doku.php?id=wiki:form_editing
     """
     response.generic_patterns = ['html']
+    JS_FUNCTION = local_import('jqgrid', reload=True).Raw
     return dict(foo=JqGrid(globals(), db.things,
         nav_grid_options={'add': True, 'edit': True, 'del': True,
             'search': False},
@@ -689,7 +705,21 @@ def form_editing_custom():
                   'name': 'owner',
                   'index':'owner',
                   'editable': True,
-              }
+              },
+              {
+                  'name': 'expire',
+                  'index': 'expire',
+                  'width': 100,
+                  'editable': True,
+                  'editoptions': {
+                      'dataInit': JS_FUNCTION("""
+                          function(el) {
+                            setTimeout( function() {
+                                $(el).datepicker({dateFormat: 'yy-mm-dd'});
+                            }, 200);
+                          }"""),
+                  },
+              },
             ],
             'caption': 'Select row and click Add/Edit/Del icons in nav bar.',
             },

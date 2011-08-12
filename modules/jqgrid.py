@@ -60,12 +60,13 @@ Requirements (by default they come with the JqGrid standalone app):
 
 """
 
-from gluon.contrib.simplejson import dumps
+from gluon.contrib.simplejson import dumps, JSONEncoder
 from gluon.html import DIV, SCRIPT, TABLE, URL
 from gluon.http import HTTP
 from string import Template
 import math
 import logging
+import re
 
 
 def JQGRID(environment, table):
@@ -81,6 +82,30 @@ def JQGRID(environment, table):
     # C0103: *Invalid name "%s" (should match %s)*
     # pylint: disable=C0103
     return JqGrid(environment, table)()
+
+
+class Raw(object):
+    "Used by JSONEncoderRaw"
+    def __init__(self, payload):
+        self.payload = payload
+    def as_is(self):
+        return self.payload
+
+class JSONEncoderRaw(JSONEncoder):
+    "Raw objects will be encoded as-is. So output might not be strict json."
+    PLACEHOLDER_PATTERN = re.compile(r'"__RAW__-?\d+"')
+    locker = {}
+    def default(self, obj):
+        if isinstance(obj, Raw):
+            signature = '__RAW__%s' % id(obj)
+            self.locker['"%s"' % signature] = obj.as_is()
+            return signature
+        return JSONEncoder.default(self, obj)
+    def encode(self, o):
+        result = JSONEncoder.encode(self, o)
+        for placeholder in self.PLACEHOLDER_PATTERN.findall(result):
+            result = result.replace(placeholder, self.locker.pop(placeholder))
+        return result
 
 
 class JqGrid(object):
@@ -162,23 +187,31 @@ class JqGrid(object):
                     ' '.join(word.capitalize()
                         for word in item['name'].split('_'))
                     for item in options['colModel']]
+        data_vars = {'w2p_jqgrid_action': 'data', 'w2p_jqgrid_table': table}
+        data_vars.update(request.vars)
         options.setdefault('url', URL(r=request,
                 # No need for URL(..., hmac_hash=...) here,
                 # because even tampered url won't get access to other table
-                args=request.args + ['data', str(table)], vars=request.vars))
-        if request.args[-2:] == ['data', str(table)]:
+                args=request.args, vars=data_vars))
+        if request.vars.get('w2p_jqgrid_action') == 'data' \
+                and request.vars.get('w2p_jqgrid_table') == str(table):
             environment['response'].view = 'generic.json'
             raise HTTP(200, environment['response'].render(self.data(
                     environment, table, query=query, orderby=orderby,
                     fields=[v.get('name') for v in options['colModel']])))
-        options.setdefault('editurl', URL(r=request, args=request.args + ['cud', table]))
-        if request.args[-2:] == ['cud', str(table)]:
+        options.setdefault('editurl', URL(r=request,
+                vars={'w2p_jqgrid_action': 'cud', 'w2p_jqgrid_table': table}))
+        if request.vars.get('w2p_jqgrid_action') == 'cud' \
+                and request.vars.get('w2p_jqgrid_table') == str(table):
             raise HTTP(200, self.cud(environment, table))
+
         options.setdefault('caption', 'Data of %s' % table)
         options['pager'] = self.pager_div_id = pager_div_id or \
                 ('jqgrid_pager_%s' % table)
         self.list_table_id = list_table_id or ('jqgrid_list_%s' % table)
-        self.basic_options = dumps(options)[1:-1]       # Strip quotation marks
+        self.basic_options = dumps(options,
+                cls = JSONEncoderRaw    # to support javascript function
+                )[1:-1]       # Strip quotation marks
         self.initialize_response_files(environment, self.response_files)
         self.callbacks = ''
         if select_callback_url:

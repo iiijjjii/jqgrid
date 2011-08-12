@@ -93,6 +93,7 @@ db.define_table('things',
                 Field('owner'),
                 Field('cost','double'),
                 Field('price','double'),
+                Field('expire', 'date'),
                 Field('category', db.category),
                 migrate=True,
                 )
@@ -106,7 +107,7 @@ class ThingsVirtFields(object):
         two_places = Decimal(10) ** -2
         try:
             value = float(int(100 * self.things.price / self.things.cost)/100.0)
-        except (ZeroDivisionError, InvalidOperation):
+        except (ZeroDivisionError, InvalidOperation, TypeError):
             value = 0
         return str(value)       # Strings work in jqgrid, Decimal's do not
 
