@@ -179,6 +179,8 @@ class JqGrid(object):
         pager_div_id=None,
         list_table_id=None
         ):
+        import sys      # FIXME
+        print >> sys.stderr, 'query: {var}'.format(var=query)
         request = environment['request']
         self.table = table
         options = dict(self.default_jqgrid_options)
@@ -269,6 +271,23 @@ class JqGrid(object):
     def __call__(self):
         return DIV(self.script(), self.list(), self.pager())
 
+    def column(self, name):
+        """Convenience method used to return the colModel column with the
+        provided name.
+
+        Example: set the 'date' column width to 100
+            jqgrid.column('date')['width'] = 100
+        """
+        if not self.jqgrid_options:
+            return
+        if not 'colModel' in self.jqgrid_options:
+            return
+        try:
+            return [x for x in self.jqgrid_options['colModel'] \
+                    if x['name'] == name][0]
+        except IndexError:
+            return
+
     @classmethod
     def data(cls, environment, table, query=None, orderby=None, fields=None):
         """Method for accessing jqgrid row data.
@@ -306,6 +325,9 @@ class JqGrid(object):
                     query = query & (table[k] == int(v))
                 else:
                     logging.warn('Unsupported %s: %s=%s', table[k].type, k, v)
+        import sys      # FIXME
+        print >> sys.stderr, 'query: {var}'.format(var=query)
+
         logging.debug('query = %s', query)
         if orderby is None:
             assert request.vars.sidx in table, 'VirtualField is not sortable'
