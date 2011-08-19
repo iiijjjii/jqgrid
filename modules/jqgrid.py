@@ -68,6 +68,7 @@ import math
 import logging
 import re
 
+DEFAULT = '__USE_DEFAULT_SETTING__'
 
 def JQGRID(environment, table):
     """Convenience function so JQGRID works like a native web2py html helper
@@ -79,10 +80,7 @@ def JQGRID(environment, table):
                 JQGRID(globals(), db.things),
                 )}
     """
-    # C0103: *Invalid name "%s" (should match %s)*
-    # pylint: disable=C0103
     return JqGrid(environment, table)()
-
 
 class Raw(object):
     "Used by JSONEncoderRaw"
@@ -111,7 +109,7 @@ class JSONEncoderRaw(JSONEncoder):
 class JqGrid(object):
     """Class representing interface to jqgrid, jquery grid plugin."""
 
-    default_options = {
+    default_jqgrid_options = {
         'data': {},
         'datatype': 'json',
         'mtype': 'GET',
@@ -123,12 +121,19 @@ class JqGrid(object):
         'viewrecords': True,
         'height': '300px',
         }
-    default_nav_grid_options = {'search': False}    # not yet supported
+    default_options = default_jqgrid_options      # for backward compatibility
+    default_nav_grid_options = {
+        # http://www.trirand.com/jqgridwiki/doku.php?id=wiki:navigator
+        'search': False,  # as of 2011-08-03 navGrid Search not implemented
+        'add': False, 'edit': False, 'del': False, 'view': False,
+        'refresh': False,
+        }
     default_nav_edit_options = {}   # e.g. {'width': 400, 'editCaption': '*'}
     default_nav_add_options = {}    # e.g. {'width': 400, 'addCaption': '+'}
     default_nav_del_options = {}    # e.g. {'width': 400, 'caption': '-'}
     default_nav_search_options = {}     # e.g. {'width': 400, 'caption': '?'}
     default_nav_view_options = {}   # e.g. {'width': 400, 'caption': '='}
+    default_filter_toolbar_options = None  # None to disable, {...} to enable
 
     template = '''
         jQuery(document).ready(function(){
@@ -164,19 +169,19 @@ class JqGrid(object):
         orderby=None,
         jqgrid_options=None,
         select_callback_url=None,
-        nav_grid_options=None,          # Use {...} to enable crud action(s)
-        nav_edit_options=None,
-        nav_add_options=None,
-        nav_del_options=None,
-        nav_search_options=None,
-        nav_view_options=None,
-        filter_toolbar_options=None,    # Use {} to enable toolbar searching
+        nav_grid_options=DEFAULT,   # Use None to disable, {...} to enable
+        nav_edit_options=DEFAULT,
+        nav_add_options=DEFAULT,
+        nav_del_options=DEFAULT,
+        nav_search_options=DEFAULT,
+        nav_view_options=DEFAULT,
+        filter_toolbar_options=DEFAULT, # Use None to disable, {...} to enable
         pager_div_id=None,
         list_table_id=None
         ):
         request = environment['request']
         self.table = table
-        options = dict(self.default_options)
+        options = dict(self.default_jqgrid_options)
         if jqgrid_options:
             options.update(jqgrid_options)
         options.setdefault(
@@ -184,9 +189,10 @@ class JqGrid(object):
         if not 'colNames' in options:
             options['colNames'] = [table[item['name']].label
                     if item['name'] in table else
-                    ' '.join(word.capitalize()
-                        for word in item['name'].split('_'))
+                    ' '.join(          # to support virtual or arbitrary field
+                        word.capitalize() for word in item['name'].split('_'))
                     for item in options['colModel']]
+
         data_vars = {'w2p_jqgrid_action': 'data', 'w2p_jqgrid_table': table}
         data_vars.update(request.vars)
         options.setdefault('url', URL(r=request,
@@ -199,7 +205,8 @@ class JqGrid(object):
             raise HTTP(200, environment['response'].render(self.data(
                     environment, table, query=query, orderby=orderby,
                     fields=[v.get('name') for v in options['colModel']])))
-        options.setdefault('editurl', URL(r=request,
+
+        options.setdefault('editurl', URL(r=request, args=request.args,
                 vars={'w2p_jqgrid_action': 'cud', 'w2p_jqgrid_table': table}))
         if request.vars.get('w2p_jqgrid_action') == 'cud' \
                 and request.vars.get('w2p_jqgrid_table') == str(table):
@@ -209,9 +216,7 @@ class JqGrid(object):
         options['pager'] = self.pager_div_id = pager_div_id or \
                 ('jqgrid_pager_%s' % table)
         self.list_table_id = list_table_id or ('jqgrid_list_%s' % table)
-        self.basic_options = dumps(options,
-                cls = JSONEncoderRaw    # to support javascript function
-                )[1:-1]       # Strip quotation marks
+        self.jqgrid_options = options
         self.initialize_response_files(environment, self.response_files)
         self.callbacks = ''
         if select_callback_url:
@@ -219,28 +224,21 @@ class JqGrid(object):
                 onSelectRow: function(id){
                     window.location.href = '%s'.replace('{id}', id);
                 },''' % select_callback_url
-        self.extra = ''
-        if isinstance(nav_grid_options, dict):
-            grid_options = dict(self.default_nav_grid_options)
-            grid_options.update(nav_grid_options or {})
-            edit_options = dict(self.default_nav_edit_options)
-            edit_options.update(nav_edit_options or {})
-            add_options = dict(self.default_nav_add_options)
-            add_options.update(nav_add_options or {})
-            del_options = dict(self.default_nav_del_options)
-            del_options.update(nav_del_options or {})
-            search_options = dict(self.default_nav_search_options)
-            search_options.update(nav_search_options or {})
-            view_options = dict(self.default_nav_view_options)
-            view_options.update(nav_view_options or {})
-            self.extra += \
-                "jQuery('#%s').jqGrid('navGrid', '#%s', %s, %s,%s,%s,%s,%s);" \
-                % (self.list_table_id, self.pager_div_id, dumps(grid_options),
-                dumps(edit_options), dumps(add_options), dumps(del_options),
-                dumps(search_options), dumps(view_options))
-        if isinstance(filter_toolbar_options, dict):
-            self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);" % (
-                    self.list_table_id, dumps(filter_toolbar_options))
+
+        self.nav_grid_options = self.default_nav_grid_options \
+                if nav_grid_options==DEFAULT else nav_grid_options
+        self.nav_edit_options = self.default_nav_edit_options \
+                if nav_edit_options==DEFAULT else nav_edit_options
+        self.nav_add_options = self.default_nav_add_options \
+                if nav_add_options==DEFAULT else nav_add_options
+        self.nav_del_options = self.default_nav_del_options \
+                if nav_del_options==DEFAULT else nav_del_options
+        self.nav_search_options = self.default_nav_search_options \
+                if nav_search_options==DEFAULT else nav_search_options
+        self.nav_view_options = self.default_nav_view_options \
+                if nav_view_options==DEFAULT else nav_view_options
+        self.filter_toolbar_options = self.default_filter_toolbar_options \
+                if filter_toolbar_options==DEFAULT else filter_toolbar_options
 
     @classmethod    # this way a JqGrid instance is not required
     def initialize_response_files(cls, environment, response_files=None,
@@ -337,6 +335,7 @@ class JqGrid(object):
         "Create/update/delete callback, defined by editurl option."
         request = environment['request']
         crud = environment['crud']    # Caller must supply proper crud instance
+        # Redirection will interfere form editing. Turn them off.
         crud.settings.create_next = None
         crud.settings.update_next = None
         crud.settings.delete_next = None
@@ -376,4 +375,20 @@ class JqGrid(object):
 
     def script(self):
         """Return a HTML script representing jqgrid javascript."""
+        # so user has chance for customizing, between __init__() and script()
+        self.basic_options = dumps(
+                self.jqgrid_options,
+                cls = JSONEncoderRaw    # to support javascript function
+                )[1:-1]       # Strip quotation marks
+        self.extra = ''
+        if isinstance(self.nav_grid_options, dict):
+            self.extra += \
+                "jQuery('#%s').jqGrid('navGrid','#%s',%s,%s,%s,%s,%s,%s);" % (
+                self.list_table_id, self.pager_div_id,
+                dumps(self.nav_grid_options), dumps(self.nav_edit_options),
+                dumps(self.nav_add_options), dumps(self.nav_del_options),
+                dumps(self.nav_search_options), dumps(self.nav_view_options))
+        if isinstance(self.filter_toolbar_options, dict):
+            self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);" % (
+                    self.list_table_id, dumps(self.filter_toolbar_options))
         return SCRIPT(Template(self.template).safe_substitute(self.__dict__))

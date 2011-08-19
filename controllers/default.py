@@ -10,7 +10,10 @@ import math
 
 response.menu = [
     ('Minimal', False, URL('minimal'), []),
-    ('Customize', False, URL('customize'), []),
+    ('Customize', False, URL('customize'), [
+        ('Simple customization', False, URL('customize'), []),
+        ('Complex customization', False, URL('more_customize'), []),
+        ]),
     ('Subclass', False, URL('how_to_subclass'), []),
     ('Using View', False, URL('using_a_view'), [
         ('Using View1', False, URL('using_a_view'), []),
@@ -46,7 +49,7 @@ response.menu = [
         ]),
     ]
 
-JqGrid = local_import('jqgrid', app='jqgrid', reload=True).JqGrid
+JqGrid = local_import('jqgrid', reload=True).JqGrid
 JqGrid.initialize_response_files(globals(),     # Better have this explicitly
         # Note: web2py's default base.css conflicts with jQuery-ui 'smoothness'
         # theme.
@@ -162,6 +165,31 @@ def how_to_subclass():
             globals(), db.category, jqgrid_options=jqgrid_options)())
 
 
+def more_customize():
+    "Illustrates how you have multiple chances to customize setting"
+    response.generic_patterns = ['html']
+    class JqGridWithNav(JqGrid):
+        # JqGrid class has default setting. You can redefine them.
+        default_nav_grid_options = {
+            'search': False,  # as of 2011-08-03 navGrid Search not implemented
+            'add': True, 'edit': True, 'del': True, 'view': True,
+            'refresh': True,
+            }
+        default_nav_edit_options = {'width': 800, 'editCaption': '*'}
+        default_filter_toolbar_options = {'searchOnEnter': True}
+    jqgrid = JqGridWithNav(globals(), db.category,
+            nav_grid_options = {  # now overrides default setting
+                # unmentioned parameters are determined by underlying jqgrid
+                'search': False, 'add': False, 'del': False,},
+            filter_toolbar_options = None, # overrides default setting
+            # other unmentioned *_options will use default setting
+            )
+    # Now you can fine tune specific setting, rather than fully redefine them
+    jqgrid.jqgrid_options['colModel'][0]['width'] = 400
+    jqgrid.filter_toolbar_options = {'searchOnEnter': False} # overrides above
+    return dict(jqgrid = jqgrid())
+
+
 def using_a_view():
     """Illustrate using a view to display a jqgrid table"""
     # Notice the "()". So, what we transmit into the view, is something
@@ -188,10 +216,10 @@ def two_in_one():
     return dict(
         grid1=JqGrid(globals(), db.things,
             jqgrid_options={'width': 540},
-            nav_grid_options={'edit': False})(),
+            nav_grid_options={'edit': True})(),
         grid2=JqGrid(globals(), db.category,
             jqgrid_options={'caption': "List for grid 2."},
-            nav_grid_options={'add': False})())
+            nav_grid_options={'add': True})())
 
 
 def components():
@@ -314,6 +342,7 @@ def custom_query_2():
     Like custom_query except the query variable is dynamic, obtained from
     request.args(0).
     """
+    response.generic_patterns = ['html']
     categories = db(db.category.id > 0).select(limitby=(0,6))
     return dict(categories=categories, jqgrid=JqGrid(
         globals(),
