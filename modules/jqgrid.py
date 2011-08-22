@@ -179,8 +179,6 @@ class JqGrid(object):
         pager_div_id=None,
         list_table_id=None
         ):
-        import sys      # FIXME
-        print >> sys.stderr, 'query: {var}'.format(var=query)
         request = environment['request']
         self.table = table
         options = dict(self.default_jqgrid_options)
@@ -325,9 +323,6 @@ class JqGrid(object):
                     query = query & (table[k] == int(v))
                 else:
                     logging.warn('Unsupported %s: %s=%s', table[k].type, k, v)
-        import sys      # FIXME
-        print >> sys.stderr, 'query: {var}'.format(var=query)
-
         logging.debug('query = %s', query)
         if orderby is None:
             assert request.vars.sidx in table, 'VirtualField is not sortable'
