@@ -302,7 +302,6 @@ class JqGrid(object):
             fields: list of table field names
         """
         request = environment['request']
-        rows = []
         page = int(request.vars.page)
         pagesize = int(request.vars.rows)
         limitby = (page * pagesize - pagesize, page * pagesize)
@@ -311,33 +310,24 @@ class JqGrid(object):
         for k, v in request.vars.items():
             #Only works when filter_toolbar_options != {stringResult:True, ...}
             if k in table.fields and v:
-                if table[k].type in ('text', 'string'):
-                    query = query & table[k].startswith(v)
-                elif table[k].type in ('id', 'integer', 'float', 'double'):
-                    # intentionally not use exact matching
-                    # note: startswith() fails
-                    query = query & (table[k].like(v + '%'))
-                elif table[k].type.startswith('list:reference'):
-                    query = query & (table[k].contains(v))
-                elif table[k].type.startswith('reference'):
-                    query = query & (table[k] == int(v))
-                else:
-                    logging.warn('Unsupported %s: %s=%s', table[k].type, k, v)
+                try:
+                    query = query & cls.filter_query_by_field_type(table[k], v)
+                except SyntaxError as err:
+                    logging.warn(err)
+            else:
+                filter_query = cls.filter_query(table._db, k, v)
+                if filter_query:
+                    query = query & filter_query
         logging.debug('query = %s', query)
         if orderby is None:
-            assert request.vars.sidx in table, 'VirtualField is not sortable'
             if request.vars.sidx in table:
-                orderby = table[request.vars.sidx]
+                orderby = [table[request.vars.sidx]]
+            else:
+                orderby = cls.orderby_for_column(table, request.vars.sidx)
             if orderby and request.vars.sord == 'desc':
-                orderby = ~(orderby)
-        for r in table._db(query).select(limitby=limitby, orderby=orderby):
-            vals = []
-            for f in fields or table.fields:
-                if (f in table and table[f].represent):
-                    vals.append(table[f].represent(r[f]))
-                else:
-                    vals.append(r[f])
-            rows.append(dict(id=r.id, cell=vals))
+                orderby = [~x for x in orderby]
+
+        rows = cls.data_rows(table, query, orderby, limitby, fields)
         logging.debug('SQL = %s', table._db._lastsql)
         total_records = table._db(query).count()
         total_pages = int(math.ceil(total_records / float(pagesize)))
@@ -346,6 +336,115 @@ class JqGrid(object):
                 page=min(page, total_pages),
                 rows=rows,
                 records=total_records)
+
+    @staticmethod
+    def filter_query_by_field_type(field, value):
+        """Return a query for filtering results on field by field type.
+
+        Args:
+            field: gluon.dal.Field instance
+            value: mixed, the value of the field to filter on
+
+        Returns:
+            gluon.dal.Query instance
+        """
+        if field.type in ('text', 'string'):
+            query = field.startswith(value)
+        elif field.type in ('id', 'integer', 'float', 'double',
+                'date', 'datetime', 'time'):
+            # intentionally not use exact matching
+            # note: startswith() fails
+            query = (field.like(value + '%'))
+        elif field.type.startswith('decimal'):
+            query = (field.like(value + '%'))
+        elif field.type.startswith('list:reference'):
+            query = (field.contains(value))
+        elif field.type.startswith('reference'):
+            query = (field == int(value))
+        elif field.type == 'boolean':
+            query = (field == value)
+        else:
+            # FIXME create custom exception
+            raise SyntaxError('No filtering support for field type {t}' \
+                    % (field.type))
+        return query
+
+    @staticmethod
+    def filter_query(db, column, value):
+        """Return a query for filtering results
+
+        Override this method to provide custom filtering in a subclass. See
+        commented sample code below.
+
+        Args:
+            db: gluon.dal.Dal instance
+            column: string, jqgrid column name
+            value: mixed, the value of the field to filter on
+
+        Returns:
+            gluon.dal.Query instance
+        """
+        query = None
+        #if column == 'person' and value:
+        #   query = db.person.last_name.startswith(value)
+        #elif column == 'thing' and value:
+        #   ...
+        return query
+
+    @staticmethod
+    def orderby_for_column(table, column):
+        """Return an orderby expression list for suitable for sorting a
+        specific column.
+
+        Override this method to provide custom sorting in a subclass. Columns
+        with names that do not match a table field name must be handled here
+        for column sorting to work. See commented code below for an example.
+
+        Args:
+            table: gluon.dal.Table instance
+            column: string, jqgrid column name
+
+        Returns:
+            list of gluon.dal.Expression instances
+        """
+        orderby = None
+        # if column == 'person':
+        #     orderby = [table._db.person.last_name,
+        #             table._db.person.first_name]
+        # elif column == 'phone':
+        #     orderby = [table._db.person.phone]
+        # else:
+        #     logging.warn('No sorting for column %s' % (column))
+        return orderby
+
+    @staticmethod
+    def data_rows(table, query, orderby=None, limitby=None, fields=None):
+        """Return data rows for the jqgrid.
+
+        Override this method to provide custom data access (eg table joins)
+        in a subclass.
+
+        Args:
+            table: gluon.dal.Table instance
+            query: gluon.dal.Query instance
+            orderby: list of gluon.dal.Expressions
+            limitby: tuple (offset, limit)
+            fields: list of field names, if None, table.fields is used.
+
+        Return:
+            list of dicts,
+                eg [{'id': id1, 'cell': ['col1', 'col2', 'col3'..]},...]
+        """
+        rows = []
+        for r in table._db(query).select(limitby=limitby, orderby=orderby):
+            vals = []
+            for f in fields or table.fields:
+                if (f in table and table[f].represent):
+                    vals.append(table[f].represent(r[f]))
+                else:
+                    vals.append(r[f])
+            rows.append(dict(id=r.id, cell=vals))
+        return rows
 
     @classmethod
     def cud(cls, environment, table):

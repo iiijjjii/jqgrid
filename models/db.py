@@ -79,8 +79,6 @@ crud.settings.auth = None                      # =auth to enforce authorization 
 ## >>> for row in rows: print row.id, row.myfield
 #########################################################################
 
-from gluon.contrib.populate import populate
-
 db.define_table('category',
                 Field('name', label='Name of Category'),
                 format='%(name)s',
@@ -95,6 +93,7 @@ db.define_table('things',
                 Field('price','double'),
                 Field('expire', 'date'),
                 Field('category', db.category),
+                Field('active','boolean',default=True, label='Active'),
                 migrate=True,
                 )
 
@@ -112,7 +111,3 @@ class ThingsVirtFields(object):
         return str(value)       # Strings work in jqgrid, Decimal's do not
 
 db.things.virtualfields.append(ThingsVirtFields())
-
-if db(db.things.id > 0).count() == 0:
-    populate(db.category, 40)
-    populate(db.things, 1000)
