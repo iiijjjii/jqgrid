@@ -60,7 +60,7 @@ Requirements (by default they come with the JqGrid standalone app):
 
 """
 
-from gluon.contrib.simplejson import dumps, JSONEncoder
+import gluon.contrib.simplejson as json
 from gluon.html import DIV, SCRIPT, TABLE, URL
 from gluon.http import HTTP
 from string import Template
@@ -89,7 +89,7 @@ class Raw(object):
     def as_is(self):
         return self.payload
 
-class JSONEncoderRaw(JSONEncoder):
+class JSONEncoderRaw(json.JSONEncoder):
     "Raw objects will be encoded as-is. So output might not be strict json."
     PLACEHOLDER_PATTERN = re.compile(r'"__RAW__-?\d+"')
     locker = {}
@@ -98,9 +98,9 @@ class JSONEncoderRaw(JSONEncoder):
             signature = '__RAW__%s' % id(obj)
             self.locker['"%s"' % signature] = obj.as_is()
             return signature
-        return JSONEncoder.default(self, obj)
+        return json.JSONEncoder.default(self, obj)
     def encode(self, o):
-        result = JSONEncoder.encode(self, o)
+        result = json.JSONEncoder.encode(self, o)
         for placeholder in self.PLACEHOLDER_PATTERN.findall(result):
             result = result.replace(placeholder, self.locker.pop(placeholder))
         return result
@@ -492,19 +492,29 @@ class JqGrid(object):
     def script(self):
         """Return a HTML script representing jqgrid javascript."""
         # so user has chance for customizing, between __init__() and script()
-        self.basic_options = dumps(
-                self.jqgrid_options,
-                cls = JSONEncoderRaw    # to support javascript function
-                )[1:-1]       # Strip quotation marks
+        self.basic_options = dumps(self.jqgrid_options)[1:-1]    # Strip quotes
         self.extra = ''
         if isinstance(self.nav_grid_options, dict):
             self.extra += \
                 "jQuery('#%s').jqGrid('navGrid','#%s',%s,%s,%s,%s,%s,%s);" % (
                 self.list_table_id, self.pager_div_id,
-                dumps(self.nav_grid_options), dumps(self.nav_edit_options),
-                dumps(self.nav_add_options), dumps(self.nav_del_options),
-                dumps(self.nav_search_options), dumps(self.nav_view_options))
+                dumps(self.nav_grid_options),
+                dumps(self.nav_edit_options),
+                dumps(self.nav_add_options),
+                dumps(self.nav_del_options),
+                dumps(self.nav_search_options),
+                dumps(self.nav_view_options)
+                )
         if isinstance(self.filter_toolbar_options, dict):
             self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);" % (
                     self.list_table_id, dumps(self.filter_toolbar_options))
         return SCRIPT(Template(self.template).safe_substitute(self.__dict__))
+
+
+def dumps(obj, **kwargs):
+    """Serialize obj to a JSON string using JSONEncoderRaw
+
+    By using JSONEncoderRaw, the obj can contain javascript functions.
+    """
+    return json.dumps(obj, cls=JSONEncoderRaw, **kwargs)
+
