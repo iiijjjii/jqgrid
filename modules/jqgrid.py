@@ -70,6 +70,12 @@ import re
 
 DEFAULT = '__USE_DEFAULT_SETTING__'
 
+
+class NoFilterForFieldType(Exception):
+    """Exception indicating no filter is defined for field type."""
+    pass
+
+
 def JQGRID(environment, table):
     """Convenience function so JQGRID works like a native web2py html helper
     Usage in your controller:
@@ -82,23 +88,29 @@ def JQGRID(environment, table):
     """
     return JqGrid(environment, table)()
 
+
 class Raw(object):
     "Used by JSONEncoderRaw"
+
     def __init__(self, payload):
         self.payload = payload
+
     def as_is(self):
         return self.payload
+
 
 class JSONEncoderRaw(json.JSONEncoder):
     "Raw objects will be encoded as-is. So output might not be strict json."
     PLACEHOLDER_PATTERN = re.compile(r'"__RAW__-?\d+"')
     locker = {}
+
     def default(self, obj):
         if isinstance(obj, Raw):
             signature = '__RAW__%s' % id(obj)
             self.locker['"%s"' % signature] = obj.as_is()
             return signature
         return json.JSONEncoder.default(self, obj)
+
     def encode(self, o):
         result = json.JSONEncoder.encode(self, o)
         for placeholder in self.PLACEHOLDER_PATTERN.findall(result):
@@ -175,7 +187,7 @@ class JqGrid(object):
         nav_del_options=DEFAULT,
         nav_search_options=DEFAULT,
         nav_view_options=DEFAULT,
-        filter_toolbar_options=DEFAULT, # Use None to disable, {...} to enable
+        filter_toolbar_options=DEFAULT,  # Use None to disable, {...} to enable
         pager_div_id=None,
         list_table_id=None
         ):
@@ -226,19 +238,20 @@ class JqGrid(object):
                 },''' % select_callback_url
 
         self.nav_grid_options = self.default_nav_grid_options \
-                if nav_grid_options==DEFAULT else nav_grid_options
+                if nav_grid_options == DEFAULT else nav_grid_options
         self.nav_edit_options = self.default_nav_edit_options \
-                if nav_edit_options==DEFAULT else nav_edit_options
+                if nav_edit_options == DEFAULT else nav_edit_options
         self.nav_add_options = self.default_nav_add_options \
-                if nav_add_options==DEFAULT else nav_add_options
+                if nav_add_options == DEFAULT else nav_add_options
         self.nav_del_options = self.default_nav_del_options \
-                if nav_del_options==DEFAULT else nav_del_options
+                if nav_del_options == DEFAULT else nav_del_options
         self.nav_search_options = self.default_nav_search_options \
-                if nav_search_options==DEFAULT else nav_search_options
+                if nav_search_options == DEFAULT else nav_search_options
         self.nav_view_options = self.default_nav_view_options \
-                if nav_view_options==DEFAULT else nav_view_options
+                if nav_view_options == DEFAULT else nav_view_options
         self.filter_toolbar_options = self.default_filter_toolbar_options \
-                if filter_toolbar_options==DEFAULT else filter_toolbar_options
+                if filter_toolbar_options == DEFAULT else \
+                filter_toolbar_options
 
     @classmethod    # this way a JqGrid instance is not required
     def initialize_response_files(cls, environment, response_files=None,
@@ -305,20 +318,19 @@ class JqGrid(object):
         page = int(request.vars.page)
         pagesize = int(request.vars.rows)
         limitby = (page * pagesize - pagesize, page * pagesize)
-        if not query:
-            query = table.id > 0
+        queries = []
         for k, v in request.vars.items():
             #Only works when filter_toolbar_options != {stringResult:True, ...}
             if k in table.fields and v:
                 try:
-                    query = query & cls.filter_query_by_field_type(table[k], v)
-                except SyntaxError as err:
+                    queries.append(cls.filter_query_by_field_type(table[k], v))
+                except NoFilterForFieldType as err:
                     logging.warn(err)
             else:
-                filter_query = cls.filter_query(table._db, k, v)
-                if filter_query:
-                    query = query & filter_query
-        logging.debug('query = %s', query)
+                queries.append(cls.filter_query(table._db, k, v))
+        built_query = reduce(lambda x, y: x & y, [x for x in queries if x],
+                query or table.id > 0)
+        logging.debug('query = %s', built_query)
         if orderby is None:
             if request.vars.sidx in table:
                 orderby = [table[request.vars.sidx]]
@@ -327,9 +339,9 @@ class JqGrid(object):
             if orderby and request.vars.sord == 'desc':
                 orderby = [~x for x in orderby]
 
-        rows = cls.data_rows(table, query, orderby, limitby, fields)
+        rows = cls.data_rows(table, built_query, orderby, limitby, fields)
         logging.debug('SQL = %s', table._db._lastsql)
-        total_records = table._db(query).count()
+        total_records = table._db(built_query).count()
         total_pages = int(math.ceil(total_records / float(pagesize)))
         return dict(
                 total=total_pages,
@@ -364,9 +376,8 @@ class JqGrid(object):
         elif field.type == 'boolean':
             query = (field == value)
         else:
-            # FIXME create custom exception
-            raise SyntaxError('No filtering support for field type {t}' \
-                    % (field.type))
+            raise NoFilterForFieldType(
+                    'No filtering support for field type {t}' % (field.type))
         return query
 
     @staticmethod
@@ -517,4 +528,3 @@ def dumps(obj, **kwargs):
     By using JSONEncoderRaw, the obj can contain javascript functions.
     """
     return json.dumps(obj, cls=JSONEncoderRaw, **kwargs)
-
