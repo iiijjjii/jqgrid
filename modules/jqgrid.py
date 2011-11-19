@@ -319,9 +319,11 @@ class JqGrid(object):
         pagesize = int(request.vars.rows)
         limitby = (page * pagesize - pagesize, page * pagesize)
         queries = []
+        if not fields:
+            fields = table.fields
         for k, v in request.vars.items():
             #Only works when filter_toolbar_options != {stringResult:True, ...}
-            if k in table.fields and v:
+            if k in fields and v:
                 try:
                     queries.append(cls.filter_query_by_field_type(table[k], v))
                 except NoFilterForFieldType as err:
@@ -466,6 +468,7 @@ class JqGrid(object):
         crud.settings.create_next = None
         crud.settings.update_next = None
         crud.settings.delete_next = None
+        form = None
         if request.vars.oper == 'del' and request.vars.id:
             for del_id in request.vars.id.split(','):
                 crud.delete(table, del_id)
@@ -486,11 +489,22 @@ class JqGrid(object):
             form = crud.update(table,
                     request.vars.id if request.vars.id != '_empty' else None,
                     formname=None)      # another magic
+
             if form.errors:
                 raise HTTP(406,
                     ',<br />'.join('%s:%s' % (form.table[k].label, v)
                         for k, v in form.errors.items())
                     )
+        if not form or not form.errors:
+            cls.cud_callback(environment, table, form)
+
+    @classmethod
+    def cud_callback(cls, environment, table, form=None):
+        """Callback called after cud update.
+
+        Intended to be overridden in subclass.
+        """
+        pass
 
     def list(self):
         """Return a HTML table representing jqgrid list."""
