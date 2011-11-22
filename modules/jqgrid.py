@@ -323,7 +323,7 @@ class JqGrid(object):
             fields = table.fields
         for k, v in request.vars.items():
             #Only works when filter_toolbar_options != {stringResult:True, ...}
-            if k in fields and v:
+            if k in table.fields and v:
                 try:
                     queries.append(cls.filter_query_by_field_type(table[k], v))
                 except NoFilterForFieldType as err:
