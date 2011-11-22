@@ -343,13 +343,58 @@ class JqGrid(object):
 
         rows = cls.data_rows(table, built_query, orderby, limitby, fields)
         logging.debug('SQL = %s', table._db._lastsql)
-        total_records = table._db(built_query).count()
+        total_records = cls.data_records(table, built_query)
         total_pages = int(math.ceil(total_records / float(pagesize)))
         return dict(
                 total=total_pages,
                 page=min(page, total_pages),
                 rows=rows,
                 records=total_records)
+
+    @staticmethod
+    def data_rows(table, query, orderby=None, limitby=None, fields=None):
+        """Return data rows for the jqgrid.
+
+        Override this method to provide custom data access (eg table joins)
+        in a subclass.
+
+        Args:
+            table: gluon.dal.Table instance
+            query: gluon.dal.Query instance
+            orderby: list of gluon.dal.Expressions
+            limitby: tuple (offset, limit)
+            fields: list of field names, if None, table.fields is used.
+
+        Return:
+            list of dicts,
+                eg [{'id': id1, 'cell': ['col1', 'col2', 'col3'..]},...]
+        """
+        rows = []
+        for r in table._db(query).select(limitby=limitby, orderby=orderby):
+            vals = []
+            for f in fields or table.fields:
+                if (f in table and table[f].represent):
+                    vals.append(table[f].represent(r[f]))
+                else:
+                    vals.append(r[f])
+            rows.append(dict(id=r.id, cell=vals))
+        return rows
+
+    @staticmethod
+    def data_records(table, query):
+        """Return the number of records in the data rows for the jqgrid.
+
+        Override this method to provide a custom method for accessing the
+        number of records in a subclass.
+
+        Args:
+            table: gluon.dal.Table instance
+            query: gluon.dal.Query instance
+
+        Return:
+            integer, number of records.
+        """
+        return int(table._db(query).count())
 
     @staticmethod
     def filter_query_by_field_type(field, value):
@@ -429,35 +474,6 @@ class JqGrid(object):
         # else:
         #     logging.warn('No sorting for column %s' % (column))
         return orderby
-
-    @staticmethod
-    def data_rows(table, query, orderby=None, limitby=None, fields=None):
-        """Return data rows for the jqgrid.
-
-        Override this method to provide custom data access (eg table joins)
-        in a subclass.
-
-        Args:
-            table: gluon.dal.Table instance
-            query: gluon.dal.Query instance
-            orderby: list of gluon.dal.Expressions
-            limitby: tuple (offset, limit)
-            fields: list of field names, if None, table.fields is used.
-
-        Return:
-            list of dicts,
-                eg [{'id': id1, 'cell': ['col1', 'col2', 'col3'..]},...]
-        """
-        rows = []
-        for r in table._db(query).select(limitby=limitby, orderby=orderby):
-            vals = []
-            for f in fields or table.fields:
-                if (f in table and table[f].represent):
-                    vals.append(table[f].represent(r[f]))
-                else:
-                    vals.append(r[f])
-            rows.append(dict(id=r.id, cell=vals))
-        return rows
 
     @classmethod
     def cud(cls, environment, table):
