@@ -58,6 +58,10 @@ Requirements (by default they come with the JqGrid standalone app):
         static/jqueryui/css/jquery-ui.custom.css
         static/jqueryui/js/jquery-ui.custom.js
 
+    jquery-ui timepicker
+        http://trentrichardson.com/examples/timepicker/
+        static/jquery-ui-timepicker-addon/jquery-ui-timepicker-addon.css
+        static/jquery-ui-timepicker-addon/jquery-ui-timepicker-addon.js
 """
 
 import gluon.contrib.simplejson as json
@@ -275,6 +279,8 @@ class JqGrid(object):
                     'jqgrid/css/ui.jqgrid.css',
                     'jqgrid/js/i18n/grid.locale-%s.js' % (lang or 'en'),
                     'jqgrid/js/jquery.jqGrid.min.js',
+                    'jquery-ui-timepicker-addon/jquery-ui-timepicker-addon.css',
+                    'jquery-ui-timepicker-addon/jquery-ui-timepicker-addon.js',
                     ]]
         environment['response'].files.extend(response_files)
         return response_files

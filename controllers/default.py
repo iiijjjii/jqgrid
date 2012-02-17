@@ -672,9 +672,18 @@ def form_editing():
                     'editoptions': {
                         'dataInit': JS_FUNCTION("""
                             function(el) {
-                              setTimeout( function() {
-                                  $(el).datepicker({dateFormat: 'yy-mm-dd'});
-                              }, 200);
+                                setTimeout( function() {
+                                    $(el).datepicker({
+                                        changeMonth: true,
+                                        changeYear: true,
+                                        dateFormat: 'yy-mm-dd',
+                                        duration: 'fast',
+                                        showAnim: 'fadeIn',
+                                        showButtonPanel: true,
+                                        timeFormat: 'hh:mm:ss',
+                                        yearRange: '-100:+10'
+                                    });
+                                }, 200);
                             }"""),
                     },
                 },
@@ -729,6 +738,7 @@ def form_editing_custom():
                   'name': 'name',
                   'index':'name',
                   'editable': True,
+                  'width': 100,
               },
               {
                   'name': 'category',
@@ -741,11 +751,15 @@ def form_editing_custom():
                         for r in db(db.category.id > 0).select(
                         db.category.id, db.category.name))
                   },
+                  'width': 100,
               },
               {
                   'name': 'price',
                   'index':'price',
+                  'align': 'right',
                   'editable': True,
+                  'formatter': 'currency',
+                  'width': 100,
               },
               {
                   'name': 'owner',
@@ -755,16 +769,26 @@ def form_editing_custom():
               {
                   'name': 'expire',
                   'index': 'expire',
-                  'width': 100,
+                  'align': 'center',
                   'editable': True,
                   'editoptions': {
                       'dataInit': JS_FUNCTION("""
                           function(el) {
                             setTimeout( function() {
-                                $(el).datepicker({dateFormat: 'yy-mm-dd'});
+                                $(el).datepicker({
+                                    changeMonth: true,
+                                    changeYear: true,
+                                    dateFormat: 'yy-mm-dd',
+                                    duration: 'fast',
+                                    showAnim: 'fadeIn',
+                                    showButtonPanel: true,
+                                    timeFormat: 'hh:mm:ss',
+                                    yearRange: '-100:+10'
+                                });
                             }, 200);
                           }"""),
                   },
+                  'width': 100,
               },
               {
                   'name': 'active',
@@ -785,8 +809,31 @@ def form_editing_custom():
                           },
                       },
                   'stype': 'select',
-                  'width': 80
+                  'width': 40
                 },
+              {
+                  'name': 'created_on',
+                  'index': 'created_on',
+                  'width': 140,
+                  'editable': True,
+                  'editoptions': {
+                      'dataInit': JS_FUNCTION("""
+                          function(el) {
+                            setTimeout( function() {
+                                $(el).datetimepicker({
+                                changeMonth: true,
+                                changeYear: true,
+                                dateFormat: 'yy-mm-dd',
+                                duration: 'fast',
+                                showAnim: 'fadeIn',
+                                showButtonPanel: true,
+                                timeFormat: 'hh:mm:ss',
+                                yearRange: '-100:+10'
+                                });
+                            }, 200);
+                          }"""),
+                  },
+              },
             ],
             'caption': 'Select row and click Add/Edit/Del icons in nav bar.',
             },

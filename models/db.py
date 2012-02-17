@@ -94,6 +94,7 @@ db.define_table('things',
                 Field('expire', 'date'),
                 Field('category', db.category),
                 Field('active','boolean',default=True, label='Active'),
+                Field('created_on', 'datetime'),
                 migrate=True,
                 )
 
