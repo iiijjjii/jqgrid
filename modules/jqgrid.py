@@ -208,7 +208,6 @@ class JqGrid(object):
                     ' '.join(          # to support virtual or arbitrary field
                         word.capitalize() for word in item['name'].split('_'))
                     for item in options['colModel']]
-
         data_vars = {'w2p_jqgrid_action': 'data', 'w2p_jqgrid_table': table}
         data_vars.update(request.vars)
         options.setdefault('url', URL(r=request,
@@ -232,6 +231,11 @@ class JqGrid(object):
         options['pager'] = self.pager_div_id = pager_div_id or \
                 ('jqgrid_pager_%s' % table)
         self.list_table_id = list_table_id or ('jqgrid_list_%s' % table)
+        # setGroupHeaders method needs to be called after grid is created
+        self.set_group_headers = None
+        if 'setGroupHeaders' in options:
+            self.set_group_headers = options['setGroupHeaders']
+            del options['setGroupHeaders']
         self.jqgrid_options = options
         self.initialize_response_files(environment, self.response_files)
         self.callbacks = ''
@@ -555,6 +559,9 @@ class JqGrid(object):
         if isinstance(self.filter_toolbar_options, dict):
             self.extra += "jQuery('#%s').jqGrid('filterToolbar',%s);" % (
                     self.list_table_id, dumps(self.filter_toolbar_options))
+        if self.set_group_headers:
+            self.extra += "jQuery('#%s').jqGrid('setGroupHeaders',%s);" % (
+                    self.list_table_id, dumps(self.set_group_headers))
         return SCRIPT(Template(self.template).safe_substitute(self.__dict__))
 
 

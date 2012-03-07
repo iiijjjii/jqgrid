@@ -50,6 +50,10 @@ response.menu = [
         ('Basic', False, URL('form_editing'), []),
         ('Custom', False, URL('form_editing_custom'), []),
         ]),
+    ('Header Grouping', False, URL('header_grouping'), [
+        ('Colspan Disabled', False, URL('header_grouping'), []),
+        ('Colspan Enabled', False, URL('header_grouping_colspan'), []),
+        ]),
     ('Reset', False, URL('reset'), []),
     ]
 
@@ -127,7 +131,8 @@ def customize():
           {'name': 'category', 'index': 'category', 'width': 200},
         ],
         'caption': "Custom columns, headings, widths, caption and row numbers.",
-        'rowNum': 40,
+        'height': '100%',
+        'rowNum': 20,
         'rowList': [20, 40, 60],
         }
     return dict(jqgrid=JqGrid(globals(), db.things,
@@ -174,7 +179,9 @@ def how_to_subclass():
 def more_customize():
     "Illustrates how you have multiple chances to customize setting"
     response.generic_patterns = ['html']
+
     class JqGridWithNav(JqGrid):
+        """Class representing JqGrid with a navigator."""
         # JqGrid class has default setting. You can redefine them.
         default_nav_grid_options = {
             'search': False,  # as of 2011-08-03 navGrid Search not implemented
@@ -184,16 +191,17 @@ def more_customize():
         default_nav_edit_options = {'width': 800, 'editCaption': '*'}
         default_filter_toolbar_options = {'searchOnEnter': True}
     jqgrid = JqGridWithNav(globals(), db.category,
-            nav_grid_options = {  # now overrides default setting
+            nav_grid_options={  # now overrides default setting
                 # unmentioned parameters are determined by underlying jqgrid
-                'search': False, 'add': False, 'del': False,},
-            filter_toolbar_options = None, # overrides default setting
+                'search': False, 'add': False, 'del': False},
+            filter_toolbar_options=None,     # overrides default setting
             # other unmentioned *_options will use default setting
             )
+
     # Now you can fine tune specific setting, rather than fully redefine them
     jqgrid.jqgrid_options['colModel'][0]['width'] = 400
-    jqgrid.filter_toolbar_options = {'searchOnEnter': False} # overrides above
-    return dict(jqgrid = jqgrid())
+    jqgrid.filter_toolbar_options = {'searchOnEnter': False}  # overrides above
+    return dict(jqgrid=jqgrid())
 
 
 def using_a_view():
@@ -332,7 +340,6 @@ def as_checkboxes():
         jqgrid_options=jqgrid_options)())
 
 
-
 def category():
     """Category CRUD controller.
     Links in as_links() jqgrid category column redirect here.
@@ -370,11 +377,11 @@ def custom_query_2():
     request.args(0).
     """
     response.generic_patterns = ['html']
-    categories = db(db.category.id > 0).select(limitby=(0,6))
+    categories = db(db.category.id > 0).select(limitby=(0, 6))
     return dict(categories=categories, jqgrid=JqGrid(
         globals(),
         db.things,
-        query=db.things.category==request.args(0),
+        query=(db.things.category == request.args(0)),
         jqgrid_options={
             'caption': "Custom query: Click links above to filter by category."
             },
@@ -409,16 +416,18 @@ def custom_orderby():
 
 
 class ComplexJqGrid(JqGrid):
+    """Class representing a JqGrid with complex data access."""
 
     @staticmethod
     def data_rows(table, query, orderby=None, limitby=None, fields=None):
+        """Override super class method."""
         rows = []
         # Get data using left join
         db = table._db
         things = db(query).select(
                 db.things.ALL,
                 db.category.name,
-                left=db.category.on(db.things.category==db.category.id),
+                left=db.category.on(db.things.category == db.category.id),
                 orderby=orderby, limitby=limitby,
                 )
         for r in things:
@@ -466,13 +475,14 @@ def complex_query():
                 'sortname': 'cost',
                 'sortorder': 'desc',
                 },
-            query= db.things.category == request.args(0) if request.args(0) \
+            query=db.things.category == request.args(0) if request.args(0) \
                     else None
             )
     return dict(jqgrid=jqgrid())
 
 
 class WebServiceJqGrid(JqGrid):
+    """Class representing a Web Services JqGrid."""
 
     @classmethod
     def data(cls, environment, table, query=None, orderby=None, fields=None):
@@ -518,7 +528,8 @@ class WebServiceJqGrid(JqGrid):
 
 
 def web_service():
-    """Illustrates displaying jqgrid table with data accessed from a webservice.
+    """Illustrates displaying jqgrid table with data accessed from a
+    webservice.
 
     The WebServiceJqGrid class has a custom data method.
     """
@@ -838,6 +849,91 @@ def form_editing_custom():
             'caption': 'Select row and click Add/Edit/Del icons in nav bar.',
             },
         )())
+
+
+def header_grouping():
+    """Illustrates how to implement header grouping.
+
+    http://www.trirand.com/jqgridwiki/doku.php?id=wiki:groupingheadar
+
+    jqGrid uses the 'setGroupHeaders' method for grouping headers. When using
+    raw javascript, this method has to be called separately, after the grid is
+    created. With JqGrid, 'setGroupHeaders' can be included as a parameter in
+    the jqgrid_options argument. The module will take care of calling methods
+    in the proper order.
+    """
+    response.generic_patterns = ['html']
+    jqgrid_options = {
+        'colNames': ['ID', 'Name', 'Category', 'Owner', 'Quantity', 'Cost',
+            'Price', 'Active', 'Created On'],
+        'colModel': [
+          {'name': 'id', 'index': 'id', 'width': 100},
+          {'name': 'name', 'index': 'name', 'width': 100},
+          {'name': 'category', 'index': 'category', 'width': 100},
+          {'name': 'owner', 'index': 'owner', 'width': 200},
+          {'name': 'quantity', 'index': 'quantity', 'align': 'right',
+              'width': 60},
+          {'name': 'cost', 'index': 'cost', 'align': 'right', 'width': 60},
+          {'name': 'price', 'index': 'price', 'align': 'right', 'width': 60},
+          {'name': 'active', 'index': 'active', 'width': 60},
+          {'name': 'created_on', 'index': 'created_on', 'width': 60},
+        ],
+        'caption': "Header groupings: colspan disabled.",
+        'height': '100%',
+        'rowNum': 20,
+        'rowList': [20, 40, 60],
+        'setGroupHeaders': {
+              'useColSpanStyle': False,
+              'groupHeaders': [
+                {'startColumnName': 'name', 'numberOfColumns': 3,
+                    'titleText': 'Description'},
+                {'startColumnName': 'cost', 'numberOfColumns': 2,
+                    'titleText': 'Prices'},
+              ]
+            },
+        }
+    return dict(jqgrid=JqGrid(globals(), db.things,
+        jqgrid_options=jqgrid_options)())
+
+
+def header_grouping_colspan():
+    """Illustrates how to implement header grouping with colspan enabled.
+
+    Similar to header_grouping except the 'useColSpanStyle' option is set
+    to True.
+    """
+    response.generic_patterns = ['html']
+    jqgrid_options = {
+        'colNames': ['ID', 'Name', 'Category', 'Owner', 'Quantity', 'Cost',
+            'Price', 'Active', 'Created On'],
+        'colModel': [
+          {'name': 'id', 'index': 'id', 'width': 100},
+          {'name': 'name', 'index': 'name', 'width': 100},
+          {'name': 'category', 'index': 'category', 'width': 100},
+          {'name': 'owner', 'index': 'owner', 'width': 200},
+          {'name': 'quantity', 'index': 'quantity', 'align': 'right',
+              'width': 60},
+          {'name': 'cost', 'index': 'cost', 'align': 'right', 'width': 60},
+          {'name': 'price', 'index': 'price', 'align': 'right', 'width': 60},
+          {'name': 'active', 'index': 'active', 'width': 60},
+          {'name': 'created_on', 'index': 'created_on', 'width': 60},
+        ],
+        'caption': "Header groupings: colspan disabled.",
+        'height': '100%',
+        'rowNum': 20,
+        'rowList': [20, 40, 60],
+        'setGroupHeaders': {
+              'useColSpanStyle': True,
+              'groupHeaders': [
+                {'startColumnName': 'name', 'numberOfColumns': 3,
+                    'titleText': 'Description'},
+                {'startColumnName': 'cost', 'numberOfColumns': 2,
+                    'titleText': 'Prices'},
+              ]
+            },
+        }
+    return dict(jqgrid=JqGrid(globals(), db.things,
+        jqgrid_options=jqgrid_options)())
 
 
 def reset():
