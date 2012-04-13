@@ -21,7 +21,10 @@ response.menu = [
         ('Using View1', False, URL('using_a_view'), []),
         ('Using View2', False, URL('using_a_view_2'), []),
         ]),
-    ('Two in One', False, URL('two_in_one'), []),
+    ('Two in One', False, URL('two_in_one'), [
+        ('Different Tables', False, URL('two_in_one'), []),
+        ('Same Tables', False, URL('two_in_one_same_table'), []),
+        ]),
     ('Components', False, URL('components'), [
         ('Without a View', False, URL('components'), []),
         ('With a View', False, URL('components_with_view'), []),
@@ -229,11 +232,67 @@ def two_in_one():
     response.generic_patterns = ['html']
     return dict(
         grid1=JqGrid(globals(), db.things,
-            jqgrid_options={'width': 540},
+            jqgrid_options={'width': 1000},
             nav_grid_options={'edit': True})(),
         grid2=JqGrid(globals(), db.category,
-            jqgrid_options={'caption': "List for grid 2."},
+            jqgrid_options={'caption': "List for grid 2.", 'width':600},
             nav_grid_options={'add': True})())
+
+
+def two_in_one_same_table():
+    """Illustrate using two jqgrids on one page.
+    Both grids access data from the same table. By using different queries
+    the tables can display different data. By using different options the
+    tables can each have different columns and a different look.
+
+    The 'list_table_id' and 'pager_div_id' arguments must be unique for
+    each grid.
+    """
+    response.generic_patterns = ['html']
+    jqgrid1_options = {
+        'colNames': ['ID', 'Name', 'Category', 'Price'],
+        'colModel': [
+          {'name': 'id', 'index': 'id', 'width': 100},
+          {'name': 'name', 'index': 'name', 'width': 200},
+          {'name': 'category', 'index': 'category', 'width': 200},
+          {'name': 'price', 'index': 'price', 'align': 'right'},
+        ],
+        'caption': "Name, category, price, and price < 500.00.",
+        'height': '100%',
+        'rowNum': 10,
+        'rowList': [10, 20, 50],
+        'width': 700,
+        }
+    jqgrid2_options = {
+        'colNames': ['ID', 'Name', 'Quantity', 'Cost', 'Price'],
+        'colModel': [
+          {'name': 'id', 'index': 'id', 'width': 100},
+          {'name': 'name', 'index': 'name', 'width': 200},
+          {'name': 'quantity', 'index': 'quantity', 'align': 'right'},
+          {'name': 'cost', 'index': 'cost', 'align': 'right'},
+          {'name': 'price', 'index': 'price', 'align': 'right'},
+        ],
+        'caption': "Name, quantity, cost, price, and price > 500.00.",
+        'height': '100%',
+        'rowNum': 5,
+        'rowList': [5, 20, 45],
+        'width': 600,
+        }
+
+    return dict(
+        grid1=JqGrid(globals(), db.things,
+            query=db.things.price < 500,
+            jqgrid_options=jqgrid1_options,
+            list_table_id='jqgrid_list_things_1',
+            pager_div_id='jqgrid_pager_things_1',
+            nav_grid_options={'edit': True}
+            )(),
+        grid2=JqGrid(globals(), db.things,
+            query=db.things.price > 500,
+            jqgrid_options=jqgrid2_options,
+            list_table_id='jqgrid_list_things_2',
+            pager_div_id='jqgrid_pager_things_2',
+            nav_grid_options={'edit': True})())
 
 
 def components():

@@ -193,7 +193,7 @@ class JqGrid(object):
         nav_view_options=DEFAULT,
         filter_toolbar_options=DEFAULT,  # Use None to disable, {...} to enable
         pager_div_id=None,
-        list_table_id=None
+        list_table_id=None,
         ):
         request = environment['request']
         self.table = table
@@ -208,29 +208,31 @@ class JqGrid(object):
                     ' '.join(          # to support virtual or arbitrary field
                         word.capitalize() for word in item['name'].split('_'))
                     for item in options['colModel']]
-        data_vars = {'w2p_jqgrid_action': 'data', 'w2p_jqgrid_table': table}
+        self.pager_div_id = pager_div_id or ('jqgrid_pager_%s' % table)
+        self.list_table_id = list_table_id or ('jqgrid_list_%s' % table)
+        data_vars = {'w2p_jqgrid_action': 'data',
+                'w2p_list_table_id': self.list_table_id}
         data_vars.update(request.vars)
         options.setdefault('url', URL(r=request,
                 # No need for URL(..., hmac_hash=...) here,
                 # because even tampered url won't get access to other table
                 args=request.args, vars=data_vars))
-        if request.vars.get('w2p_jqgrid_action') == 'data' \
-                and request.vars.get('w2p_jqgrid_table') == str(table):
+        if request.vars.get('w2p_jqgrid_action') == 'data' and \
+                request.vars.get('w2p_list_table_id') == self.list_table_id:
             environment['response'].view = 'generic.json'
             raise HTTP(200, environment['response'].render(self.data(
                     environment, table, query=query, orderby=orderby,
                     fields=[v.get('name') for v in options['colModel']])))
 
         options.setdefault('editurl', URL(r=request, args=request.args,
-                vars={'w2p_jqgrid_action': 'cud', 'w2p_jqgrid_table': table}))
-        if request.vars.get('w2p_jqgrid_action') == 'cud' \
-                and request.vars.get('w2p_jqgrid_table') == str(table):
+                vars={'w2p_jqgrid_action': 'cud',
+                    'w2p_list_table_id': self.list_table_id}))
+        if request.vars.get('w2p_jqgrid_action') == 'cud' and \
+                request.vars.get('w2p_list_table_id') == self.list_table_id:
             raise HTTP(200, self.cud(environment, table))
 
         options.setdefault('caption', 'Data of %s' % table)
-        options['pager'] = self.pager_div_id = pager_div_id or \
-                ('jqgrid_pager_%s' % table)
-        self.list_table_id = list_table_id or ('jqgrid_list_%s' % table)
+        options['pager'] = self.pager_div_id
         # setGroupHeaders method needs to be called after grid is created
         self.set_group_headers = None
         if 'setGroupHeaders' in options:
