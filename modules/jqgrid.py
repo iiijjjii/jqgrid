@@ -232,7 +232,8 @@ class JqGrid(object):
             raise HTTP(200, self.cud(environment, table))
 
         options.setdefault('caption', 'Data of %s' % table)
-        options['pager'] = self.pager_div_id
+        if not 'pager' in options:
+            options['pager'] = self.pager_div_id
         # setGroupHeaders method needs to be called after grid is created
         self.set_group_headers = None
         if 'setGroupHeaders' in options:
