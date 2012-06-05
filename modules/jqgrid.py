@@ -280,7 +280,8 @@ class JqGrid(object):
         """
         appname = JqGrid.__module__.split('.')[1]   # Auto detect this app name
         if not response_files:      # then use default location
-            response_files = [URL(a=appname, c='static', f=x) for x in [
+            response_files = [
+                    URL(a=appname, c='static', f=x, extension=False) for x in [
                     'jqueryui/css/%s/jquery-ui.custom.css' % theme,
                     'jqueryui/js/jquery-ui.custom.min.js',
                     'jqgrid/css/ui.jqgrid.css',
