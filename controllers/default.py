@@ -9,7 +9,8 @@ import logging
 import math
 import random
 from gluon.contrib.populate import populate
-from applications.jqgrid.modules.jqgrid import JqGrid, Raw as JS_FUNCTION
+from applications.jqgrid.modules.jqgrid import JqGrid, Raw as JS_FUNCTION, \
+        JQGRID
 
 response.menu = [
     ('Minimal', False, URL('minimal'), []),
@@ -326,7 +327,6 @@ def components_with_view():
 def html_helper():
     """Illustrates using the modules JQGRID html helper."""
     response.generic_patterns = ['html']
-    JQGRID = local_import('jqgrid').JQGRID
     return dict(blah=DIV(
         H4('JQGRID works like a native web2py html helper.'),
         HR(),
@@ -339,7 +339,6 @@ def html_helper_with_view():
 
     Same as html_helper() but using a view.
     """
-    JQGRID = local_import('jqgrid').JQGRID
     return dict(jqgrid=JQGRID(globals(), db.things))
 
 
