@@ -5,3 +5,4 @@ databases/*
 errors/
 private/var/
 sessions/
+uploads/
