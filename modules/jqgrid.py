@@ -346,7 +346,6 @@ class JqGrid(object):
                 queries.append(cls.filter_query(table._db, k, v))
         built_query = reduce(lambda x, y: x & y, [x for x in queries if x],
                 query or table.id > 0)
-        logging.debug('query = %s', built_query)
         if orderby is None:
             if request.vars.sidx in table:
                 orderby = [table[request.vars.sidx]]
@@ -356,7 +355,6 @@ class JqGrid(object):
                 orderby = [~x for x in orderby]
 
         rows = cls.data_rows(table, built_query, orderby, limitby, fields)
-        logging.debug('SQL = %s', table._db._lastsql)
         total_records = cls.data_records(table, built_query)
         total_pages = int(math.ceil(total_records / float(pagesize)))
         return dict(
